@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0A0D1A">
+  <title>Spendings</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <!-- Navigation: bottom bar on phones, sidebar on laptops -->
+    <nav class="nav">
+      <span class="nav-logo">Spendings</span>
+      <button class="nav-btn active" data-view="home">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+        <span data-i18n="nav_home">Головна</span>
+      </button>
+      <button class="nav-btn" data-view="calendar">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>
+        <span data-i18n="nav_calendar">Календар</span>
+      </button>
+      <button class="nav-add" id="nav-add" data-i18n-aria="new_operation">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        <span data-i18n="add">Додати</span>
+      </button>
+      <button class="nav-btn" data-view="stats">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+        <span data-i18n="nav_stats">Статистика</span>
+      </button>
+      <button class="nav-btn" data-view="profile">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg>
+        <span data-i18n="nav_profile">Профіль</span>
+      </button>
+    </nav>
+
+    <main class="content">
+      <header class="top">
+        <h1 id="view-title">Spendings</h1>
+        <button id="lang-switch" class="chip">EN</button>
+      </header>
+
+      <!-- ================= Home ================= -->
+      <section id="view-home" class="view">
+        <div class="col">
+        <div class="balance">
+          <p class="muted" data-i18n="total_balance">Загальний баланс</p>
+          <p id="total" class="total"></p>
+          <p id="total-note" class="muted small"></p>
+        </div>
+
+        <div id="account-groups"></div>
+        <button id="add-account-btn" class="dashed-btn">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          <span data-i18n="add_account">Додати рахунок</span>
+        </button>
+
+        <div id="savings" class="card savings"></div>
+        </div>
+
+        <div class="col">
+        <div class="card limit-card">
+          <svg class="ring" viewBox="0 0 44 44" aria-hidden="true">
+            <circle cx="22" cy="22" r="17" class="ring-track"/>
+            <circle cx="22" cy="22" r="17" class="ring-fill" id="limit-ring"/>
+          </svg>
+          <div>
+            <p id="limit-title" class="muted small"></p>
+            <p id="limit-spent" class="strong"></p>
+            <p id="limit-left" class="small"></p>
+          </div>
+        </div>
+
+        <div class="section-head">
+          <h2 data-i18n="recent">Останні операції</h2>
+          <button class="link" id="all-ops" data-i18n="all_operations">Усі операції</button>
+        </div>
+        <div id="recent" class="card list"></div>
+        </div>
+      </section>
+
+      <!-- ================= Calendar ================= -->
+      <section id="view-calendar" class="view" hidden>
+        <div class="month-nav">
+          <button class="icon-btn month-prev" data-i18n-aria="prev_month">‹</button>
+          <h2 class="month-label"></h2>
+          <button class="icon-btn month-next" data-i18n-aria="next_month">›</button>
+        </div>
+        <div class="cols">
+        <div class="col">
+        <div class="grid2">
+          <div class="card stat"><p class="muted small" data-i18n="expenses">Витрати</p><p id="cal-expense" class="neg strong"></p></div>
+          <div class="card stat"><p class="muted small" data-i18n="incomes">Надходження</p><p id="cal-income" class="pos strong"></p></div>
+        </div>
+        <div class="card">
+          <div class="cal-grid" id="weekdays"></div>
+          <div class="cal-grid" id="cal-grid"></div>
+        </div>
+        </div>
+        <div class="col">
+        <div class="section-head">
+          <h2 id="day-title"></h2>
+          <span id="day-total" class="neg strong"></span>
+        </div>
+        <div id="day-list" class="card list"></div>
+        </div>
+        </div>
+      </section>
+
+      <!-- ================= Stats ================= -->
+      <section id="view-stats" class="view" hidden>
+        <div class="month-nav">
+          <button class="icon-btn month-prev" data-i18n-aria="prev_month">‹</button>
+          <h2 class="month-label"></h2>
+          <button class="icon-btn month-next" data-i18n-aria="next_month">›</button>
+        </div>
+        <div class="cols">
+        <div class="card donut-card">
+          <div class="donut-wrap">
+            <svg id="donut" viewBox="0 0 180 180" role="img"></svg>
+            <div class="donut-center">
+              <span class="muted small" data-i18n="spent">Витрачено</span>
+              <span id="donut-total" class="donut-total"></span>
+            </div>
+          </div>
+          <div id="cat-list"></div>
+        </div>
+        <div class="card">
+          <div class="section-head tight">
+            <h2 data-i18n="month_by_month">Місяць за місяцем</h2>
+            <div class="legend">
+              <span><i class="dot pos-bg"></i><span data-i18n="incomes">Надходження</span></span>
+              <span><i class="dot neg-bg"></i><span data-i18n="expenses">Витрати</span></span>
+            </div>
+          </div>
+          <div id="bars" class="bars"></div>
+        </div>
+        </div>
+      </section>
+
+      <!-- ================= Profile / settings ================= -->
+      <section id="view-profile" class="view" hidden>
+        <form id="settings-form" class="card form" novalidate>
+          <label>
+            <span data-i18n="monthly_limit">Ліміт витрат на місяць, грн</span>
+            <input id="limit-input" type="text" inputmode="decimal">
+          </label>
+          <p class="muted small" data-i18n="start_balances">Скільки грошей зараз на кожному рахунку</p>
+          <div id="start-balances" class="form"></div>
+          <button type="submit" class="btn primary" data-i18n="save">Зберегти</button>
+          <p id="settings-saved" class="pos small" data-i18n="saved" hidden>Збережено</p>
+        </form>
+        <div class="card">
+          <p class="strong" data-i18n="exchange_rate">Курс валют</p>
+          <p id="rate-info" class="muted small"></p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ================= Dialog: new operation ================= -->
+  <dialog id="op-dialog" class="sheet">
+    <form id="op-form" novalidate>
+      <div class="sheet-head">
+        <button type="button" class="icon-btn" id="op-close" data-i18n-aria="cancel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+        <h3 data-i18n="new_operation">Нова операція</h3>
+        <span class="spacer"></span>
+      </div>
+
+      <div class="segment">
+        <button type="button" data-type="expense" data-i18n="expense">Витрата</button>
+        <button type="button" data-type="income" data-i18n="income">Надходження</button>
+      </div>
+
+      <div class="amount-display" aria-live="polite">
+        <span id="amount-text">0</span>
+        <span id="amount-cur" class="muted"></span>
+      </div>
+      <p id="op-error" class="error" data-i18n="error_amount" hidden></p>
+
+      <div id="op-accounts" class="chips"></div>
+      <div id="op-categories" class="cat-grid"></div>
+
+      <div class="op-extra">
+        <input id="op-date" type="date" data-i18n-aria="date">
+        <input id="op-note" type="text" data-i18n-placeholder="note_placeholder" data-i18n-aria="note">
+      </div>
+
+      <div id="keypad" class="keypad"></div>
+      <button type="submit" class="btn primary" data-i18n="save">Зберегти</button>
+    </form>
+  </dialog>
+
+  <!-- ================= Dialog: new account ================= -->
+  <dialog id="acc-dialog" class="sheet">
+    <form id="acc-form" class="form" novalidate>
+      <div class="sheet-head">
+        <button type="button" class="icon-btn" id="acc-close" data-i18n-aria="cancel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+        <h3 data-i18n="add_account">Додати рахунок</h3>
+        <span class="spacer"></span>
+      </div>
+      <label>
+        <span data-i18n="account_name">Назва</span>
+        <input id="acc-name" type="text" data-i18n-placeholder="account_name_placeholder">
+      </label>
+      <p id="acc-error" class="error" data-i18n="error_name" hidden></p>
+      <label>
+        <span data-i18n="currency">Валюта</span>
+        <select id="acc-currency">
+          <option value="UAH">₴ UAH</option>
+          <option value="USD">$ USD</option>
+          <option value="EUR">€ EUR</option>
+        </select>
+      </label>
+      <label>
+        <span data-i18n="current_balance">Скільки там зараз</span>
+        <input id="acc-start" type="text" inputmode="decimal" value="0">
+      </label>
+      <label class="check">
+        <input id="acc-savings" type="checkbox">
+        <span data-i18n="is_savings">Це рахунок для накопичень</span>
+      </label>
+      <label id="acc-goal-wrap" hidden>
+        <span data-i18n="goal">Ціль (необов'язково), у валюті рахунку</span>
+        <input id="acc-goal" type="text" inputmode="decimal">
+      </label>
+      <button type="submit" class="btn primary" data-i18n="save">Зберегти</button>
+    </form>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
