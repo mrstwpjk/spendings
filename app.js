@@ -784,3 +784,10 @@ applyStaticTexts();
 buildKeypad();
 showView('home');
 refreshRates();
+
+// Save the app on the device so it also opens without internet
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {
+    // Not supported or blocked (e.g. opened as a plain file) — the app still works online
+  });
+}
