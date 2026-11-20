@@ -20,8 +20,33 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="app">
-    
+  <!-- ================= Login / sign up ================= -->
+  <section id="auth" class="auth" hidden>
+    <div class="auth-box">
+      <img src="icons/icon-192.png" alt="" class="auth-logo" width="72" height="72">
+      <h1>Spendings</h1>
+      <p class="muted" data-i18n="auth_tagline">Твої витрати на всіх пристроях</p>
+
+      <form id="auth-form" class="card form" novalidate>
+        <h2 id="auth-title" data-i18n="auth_title_login">Вхід</h2>
+        <label>
+          <span data-i18n="email">Пошта</span>
+          <input id="auth-email" type="email" autocomplete="email" inputmode="email">
+        </label>
+        <label>
+          <span data-i18n="password">Пароль</span>
+          <input id="auth-password" type="password" autocomplete="current-password">
+        </label>
+        <p id="auth-error" class="error" hidden></p>
+        <p id="auth-info" class="pos small" hidden></p>
+        <button type="submit" id="auth-submit" class="btn primary" data-i18n="auth_login_btn">Увійти</button>
+        <button type="button" id="auth-switch" class="link" data-i18n="auth_switch_to_signup">Немає акаунта? Зареєструватися</button>
+      </form>
+      <button id="auth-lang" class="chip">EN</button>
+    </div>
+  </section>
+
+  <div class="app" id="app" hidden>
     <!-- Navigation: bottom bar on phones, sidebar on laptops -->
     <nav class="nav">
       <span class="nav-logo">Spendings</span>
@@ -50,7 +75,10 @@
     <main class="content">
       <header class="top">
         <h1 id="view-title">Spendings</h1>
-        <button id="lang-switch" class="chip">EN</button>
+        <div class="top-right">
+          <span id="sync-dot" class="sync-dot" role="status"></span>
+          <button id="lang-switch" class="chip">EN</button>
+        </div>
       </header>
 
       <!-- ================= Home ================= -->
@@ -153,6 +181,12 @@
 
       <!-- ================= Profile / settings ================= -->
       <section id="view-profile" class="view" hidden>
+        <div class="card form">
+          <p class="muted small" data-i18n="account">Акаунт</p>
+          <p id="profile-email" class="strong"></p>
+          <p id="sync-text" class="small muted"></p>
+          <button type="button" id="logout" class="btn secondary" data-i18n="logout">Вийти</button>
+        </div>
         <form id="settings-form" class="card form" novalidate>
           <label>
             <span data-i18n="monthly_limit">Ліміт витрат на місяць, грн</span>
@@ -178,7 +212,7 @@
         <button type="button" class="icon-btn" id="op-close" data-i18n-aria="cancel">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
-        <h3 data-i18n="new_operation">Нова операція</h3>
+        <h3 id="op-title">Нова операція</h3>
         <span class="spacer"></span>
       </div>
 
@@ -203,6 +237,7 @@
 
       <div id="keypad" class="keypad"></div>
       <button type="submit" class="btn primary" data-i18n="save">Зберегти</button>
+      <button type="button" id="op-delete" class="btn danger" data-i18n="delete_operation" hidden>Видалити операцію</button>
     </form>
   </dialog>
 
