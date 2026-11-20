@@ -1,12 +1,13 @@
 // =====================================================
-// app.js — main logic: render screens and handle user actions
+// app.js — main logic: login, screens, sync and user actions
 // =====================================================
 
 import {
   t, getLang, setLang, applyStaticTexts, locale,
   formatMoney, currencySymbol, formatDay, formatMonth, formatMonthShort, weekdayNames
 } from './i18n.js';
-import { loadState, saveState } from './storage.js';
+import { defaultState, loadState, saveState, mergeStates, rememberUser, lastUser } from './storage.js';
+import { isConfigured, getUser, signIn, signUp, signOut, pullRemote, pushRemote } from './sync.js';
 
 // ---------- Categories ----------
 // color = letter color in the badge and the slice color in the chart
@@ -32,7 +33,8 @@ const CATEGORIES = {
 const ALL_CATEGORIES = [...CATEGORIES.expense, ...CATEGORIES.income];
 
 // ---------- App state ----------
-let state = loadState();
+let user = null;              // { id, email } of the logged-in user
+let state = defaultState();
 
 const now = new Date();
 let viewYear = now.getFullYear();
@@ -40,8 +42,12 @@ let viewMonth = now.getMonth();       // 0 = January
 let selectedDay = todayISO();          // day picked in the calendar
 let currentView = 'home';
 
-// New-operation dialog state
-let draft = { type: 'expense', amount: '', account: null, category: null };
+// New/edited operation in the dialog. editingId = null means "new"
+let draft = { editingId: null, type: 'expense', amount: '', account: null, category: null };
+
+let authMode = 'login';                // 'login' or 'signup'
+let syncStatus = 'ok';                 // 'ok' | 'syncing' | 'offline' | 'error'
+let syncTimer = null;
 
 const $ = id => document.getElementById(id);
 
@@ -66,6 +72,15 @@ function parseAmount(text) {
 function makeId() {
   if (crypto.randomUUID) return crypto.randomUUID();
   return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
+// Deleted items stay in the data (so the other device learns about it), but are hidden
+function liveAccounts() {
+  return state.accounts.filter(a => !a.deleted);
+}
+
+function liveOps() {
+  return state.operations.filter(op => !op.deleted);
 }
 
 function accountById(id) {
@@ -99,7 +114,7 @@ function opInUAH(op) {
 
 // Money in the account's own currency: start + income − expenses
 function accountBalance(account) {
-  return state.operations
+  return liveOps()
     .filter(op => op.account === account.id)
     .reduce((sum, op) => op.type === 'income' ? sum + op.amount : sum - op.amount, account.start);
 }
@@ -107,12 +122,12 @@ function accountBalance(account) {
 // Only everyday accounts count towards spending and the limit, not savings
 function isSpendingOp(op) {
   const account = accountById(op.account);
-  return account && !account.savings;
+  return account && !account.deleted && !account.savings;
 }
 
 function operationsInMonth(year, month) {
   const prefix = monthPrefix(year, month);
-  return state.operations.filter(op => op.date.startsWith(prefix) && isSpendingOp(op));
+  return liveOps().filter(op => op.date.startsWith(prefix) && isSpendingOp(op));
 }
 
 function sumUAH(operations, type) {
@@ -127,11 +142,54 @@ function dayLabel(iso) {
   return formatDay(iso);
 }
 
+// '1250.5' → '1250,5' — how an amount looks on the keypad display
+function amountToText(amount) {
+  return String(amount).replace('.', ',');
+}
+
 function el(tag, className, text) {
   const node = document.createElement(tag);
   if (className) node.className = className;
   if (text !== undefined) node.textContent = text;
   return node;
+}
+
+// ---------- Saving and syncing ----------
+
+// Called after every change: save on the device now, sync a moment later
+function persist() {
+  saveState(state, user.id);
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(syncNow, 800);
+}
+
+// Download the cloud copy, merge it with this device's copy, upload the result
+async function syncNow() {
+  if (!user) return;
+  if (!navigator.onLine) {
+    setSyncStatus('offline');
+    return;
+  }
+  setSyncStatus('syncing');
+  try {
+    const remote = await pullRemote(user.id);
+    state = mergeStates(state, remote);
+    saveState(state, user.id);
+    await pushRemote(user.id, state);
+    setSyncStatus('ok');
+    renderAll();
+  } catch {
+    setSyncStatus(navigator.onLine ? 'error' : 'offline');
+  }
+}
+
+function setSyncStatus(status) {
+  syncStatus = status;
+  const dot = $('sync-dot');
+  dot.className = 'sync-dot ' + status;
+  dot.title = t('sync_' + status);
+  dot.setAttribute('aria-label', t('sync_' + status));
+  $('sync-text').textContent = t('sync_' + status);
 }
 
 // ---------- Exchange rate from monobank ----------
@@ -150,17 +208,117 @@ async function refreshRates() {
     if (usd) state.rates.USD = usd.rateSell ?? usd.rateCross;
     if (eur) state.rates.EUR = eur.rateSell ?? eur.rateCross;
     state.rates.updatedAt = Date.now();
-    saveState(state);
+    persist();
     renderAll();
   } catch {
     // No internet or the request was blocked — keep the saved rate
   }
 }
 
+// ---------- Login / sign up ----------
+
+function showAuth(message) {
+  $('app').hidden = true;
+  $('auth').hidden = false;
+  renderAuth();
+  if (message) showAuthError(message);
+}
+
+function renderAuth() {
+  const signup = authMode === 'signup';
+  $('auth-title').textContent = t(signup ? 'auth_title_signup' : 'auth_title_login');
+  $('auth-submit').textContent = t(signup ? 'auth_signup_btn' : 'auth_login_btn');
+  $('auth-switch').textContent = t(signup ? 'auth_switch_to_login' : 'auth_switch_to_signup');
+  $('auth-password').autocomplete = signup ? 'new-password' : 'current-password';
+}
+
+function showAuthError(text) {
+  $('auth-info').hidden = true;
+  $('auth-error').textContent = text;
+  $('auth-error').hidden = false;
+}
+
+function showAuthInfo(text) {
+  $('auth-error').hidden = true;
+  $('auth-info').textContent = text;
+  $('auth-info').hidden = false;
+}
+
+// Turns Supabase's English error messages into friendly ones
+function authErrorText(error) {
+  const msg = String(error?.message ?? error);
+  if (msg === 'not_configured') return t('auth_not_configured');
+  if (/invalid login credentials/i.test(msg)) return t('auth_invalid');
+  if (/already registered|already exists/i.test(msg)) return t('auth_exists');
+  if (/email not confirmed/i.test(msg)) return t('auth_not_confirmed');
+  if (/failed to fetch|network|load failed|import/i.test(msg)) return t('auth_offline');
+  return t('auth_generic', { msg });
+}
+
+async function submitAuth(event) {
+  event.preventDefault();
+  const email = $('auth-email').value.trim();
+  const password = $('auth-password').value;
+  if (!email.includes('@')) return showAuthError(t('auth_bad_email'));
+  if (password.length < 6) return showAuthError(t('auth_short_password'));
+
+  const button = $('auth-submit');
+  button.disabled = true;
+  button.textContent = t('wait');
+  try {
+    if (authMode === 'signup') {
+      const result = await signUp(email, password);
+      if (result.needsConfirmation) {
+        authMode = 'login';
+        renderAuth();
+        showAuthInfo(t('auth_check_email'));
+        return;
+      }
+      await enterApp(result.user);
+    } else {
+      await enterApp(await signIn(email, password));
+    }
+  } catch (error) {
+    showAuthError(authErrorText(error));
+  } finally {
+    button.disabled = false;
+    if (!$('auth').hidden) renderAuth();
+  }
+}
+
+async function enterApp(loggedIn) {
+  user = { id: loggedIn.id, email: loggedIn.email };
+  rememberUser(user);
+  state = loadState(user.id);
+  $('auth').hidden = true;
+  $('app').hidden = false;
+  $('auth-password').value = '';
+  $('auth-error').hidden = true;
+  $('auth-info').hidden = true;
+  showView('home');
+  setSyncStatus(navigator.onLine ? 'syncing' : 'offline');
+  await syncNow();
+  refreshRates();
+}
+
+async function logout() {
+  try {
+    await syncNow();       // upload the last changes first
+    await signOut();
+  } catch {
+    // Offline — the session is still cleared on this device below
+  }
+  rememberUser(null);
+  user = null;
+  state = defaultState();
+  authMode = 'login';
+  showAuth();
+}
+
 // ---------- Home ----------
 
 function renderBalance() {
-  const everyday = state.accounts.filter(a => !a.savings);
+  const everyday = liveAccounts().filter(a => !a.savings);
   let total = 0;
   const foreign = {};
   for (const account of everyday) {
@@ -185,9 +343,10 @@ function renderBalance() {
 function renderAccounts() {
   const box = $('account-groups');
   box.innerHTML = '';
+  const everyday = liveAccounts().filter(a => !a.savings);
   const groups = [
-    { key: 'mono', accounts: state.accounts.filter(a => !a.savings && a.group === 'mono') },
-    { key: 'other', accounts: state.accounts.filter(a => !a.savings && a.group !== 'mono') }
+    { key: 'mono', accounts: everyday.filter(a => a.group === 'mono') },
+    { key: 'other', accounts: everyday.filter(a => a.group !== 'mono') }
   ];
   for (const group of groups) {
     if (!group.accounts.length) continue;
@@ -210,7 +369,7 @@ function renderSavings() {
   head.append(el('span', 'strong', t('savings')), el('span', 'muted small', t('savings_hint')));
   box.append(head);
 
-  const savings = state.accounts.filter(a => a.savings);
+  const savings = liveAccounts().filter(a => a.savings);
   if (!savings.length) {
     box.append(el('p', 'muted small', t('savings_empty')));
     return;
@@ -275,16 +434,18 @@ function renderLimit() {
   }
 }
 
-// One transaction row (used on Home and in the Calendar)
+// One transaction row (Home and Calendar). Tapping it opens the edit dialog.
 function renderOperationRow(op, showDate) {
   const account = accountById(op.account);
   const category = categoryById(op.category);
-  const row = el('div', 'op');
+  const row = el('button', 'op');
+  row.type = 'button';
+  row.addEventListener('click', () => openOperationDialog(op));
 
   const badge = el('span', 'badge', t('cat_' + op.category).charAt(0));
   badge.style.color = category.color;
 
-  const info = el('div', 'op-info');
+  const info = el('span', 'op-info');
   info.append(el('span', 'op-title', op.note || t('cat_' + op.category)));
   // If there's no note, the category is already the title, so don't repeat it
   const details = op.note ? [t('cat_' + op.category), accountLabel(account)] : [accountLabel(account)];
@@ -296,18 +457,15 @@ function renderOperationRow(op, showDate) {
   const amount = el('span', 'op-amount ' + (op.type === 'income' ? 'pos' : 'neg'),
     sign + formatMoney(op.amount, account?.currency ?? 'UAH'));
 
-  const del = el('button', 'icon-btn del', '×');
-  del.setAttribute('aria-label', t('delete'));
-  del.addEventListener('click', () => deleteOperation(op.id));
-
-  row.append(badge, info, amount, del);
+  row.setAttribute('aria-label', `${t('edit_operation')}: ${op.note || t('cat_' + op.category)}, ${amount.textContent}`);
+  row.append(badge, info, amount);
   return row;
 }
 
 function renderRecent() {
   const box = $('recent');
   box.innerHTML = '';
-  const recent = [...state.operations]
+  const recent = liveOps()
     .sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt)
     .slice(0, 6);
   if (!recent.length) {
@@ -372,7 +530,7 @@ function renderCalendar() {
 }
 
 function renderDay() {
-  const ops = state.operations
+  const ops = liveOps()
     .filter(op => op.date === selectedDay)
     .sort((a, b) => b.createdAt - a.createdAt);
   $('day-title').textContent = dayLabel(selectedDay);
@@ -477,10 +635,13 @@ function renderBars() {
 // ---------- Profile ----------
 
 function renderProfile() {
+  $('profile-email').textContent = user?.email ?? '';
+  setSyncStatus(syncStatus);
+
   $('limit-input').value = state.monthlyLimit || '';
   const box = $('start-balances');
   box.innerHTML = '';
-  for (const account of state.accounts) {
+  for (const account of liveAccounts()) {
     const row = el('div', 'start-row');
     const label = el('label');
     label.append(el('span', '', `${accountLabel(account)} (${currencySymbol(account.currency)})`));
@@ -517,6 +678,7 @@ const VIEW_TITLES = { home: 'title', calendar: 'nav_calendar', stats: 'nav_stats
 const laptop = window.matchMedia('(min-width: 900px)');
 
 function renderAll() {
+  if (!user) return;
   // On a laptop the app name is already in the sidebar, so Home gets its own title
   const titleKey = currentView === 'home' && laptop.matches ? 'nav_home' : VIEW_TITLES[currentView];
   $('view-title').textContent = t(titleKey);
@@ -559,22 +721,27 @@ function changeMonth(step) {
   renderAll();
 }
 
-// ---------- Actions ----------
+// ---------- Deleting ----------
 
 function deleteOperation(id) {
-  state.operations = state.operations.filter(op => op.id !== id);
-  saveState(state);
+  const op = state.operations.find(o => o.id === id);
+  if (op) Object.assign(op, { deleted: true, updatedAt: Date.now() });
+  persist();
   renderAll();
 }
 
 function deleteAccount(id) {
-  state.accounts = state.accounts.filter(a => a.id !== id);
-  state.operations = state.operations.filter(op => op.account !== id);
-  saveState(state);
+  const stamp = Date.now();
+  const account = accountById(id);
+  if (account) Object.assign(account, { deleted: true, updatedAt: stamp });
+  for (const op of state.operations) {
+    if (op.account === id && !op.deleted) Object.assign(op, { deleted: true, updatedAt: stamp });
+  }
+  persist();
   renderAll();
 }
 
-// ---------- New-operation dialog (keypad) ----------
+// ---------- Operation dialog: new or edit (keypad) ----------
 
 const KEYS = ['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', '⌫'];
 
@@ -605,6 +772,8 @@ function pressKey(key) {
 
 function renderDraft() {
   const account = accountById(draft.account);
+  $('op-title').textContent = t(draft.editingId ? 'edit_operation' : 'new_operation');
+  $('op-delete').hidden = !draft.editingId;
   $('amount-text').textContent = draft.amount || '0';
   $('amount-cur').textContent = currencySymbol(account?.currency ?? 'UAH');
 
@@ -615,7 +784,7 @@ function renderDraft() {
 
   const chips = $('op-accounts');
   chips.innerHTML = '';
-  for (const acc of state.accounts) {
+  for (const acc of liveAccounts()) {
     const chip = el('button', 'chip-btn' + (acc.id === draft.account ? ' active' : ''), accountLabel(acc));
     chip.type = 'button';
     chip.setAttribute('aria-pressed', acc.id === draft.account);
@@ -637,15 +806,30 @@ function renderDraft() {
   }
 }
 
-function openOperationDialog() {
-  draft = {
-    type: 'expense',
-    amount: '',
-    account: draft.account && accountById(draft.account) ? draft.account : state.accounts[0]?.id,
-    category: CATEGORIES.expense[0].id
-  };
-  $('op-date').value = currentView === 'calendar' ? selectedDay : todayISO();
-  $('op-note').value = '';
+// op = an existing operation to edit, or nothing for a new one
+function openOperationDialog(op) {
+  if (op && op.id) {
+    draft = {
+      editingId: op.id,
+      type: op.type,
+      amount: amountToText(op.amount),
+      account: op.account,
+      category: op.category
+    };
+    $('op-date').value = op.date;
+    $('op-note').value = op.note ?? '';
+  } else {
+    const firstAccount = liveAccounts()[0]?.id;
+    draft = {
+      editingId: null,
+      type: 'expense',
+      amount: '',
+      account: draft.account && accountById(draft.account) && !accountById(draft.account).deleted ? draft.account : firstAccount,
+      category: CATEGORIES.expense[0].id
+    };
+    $('op-date').value = currentView === 'calendar' ? selectedDay : todayISO();
+    $('op-note').value = '';
+  }
   $('op-error').hidden = true;
   renderDraft();
   $('op-dialog').showModal();
@@ -658,21 +842,32 @@ function saveOperation(event) {
     $('op-error').hidden = false;
     return;
   }
-  const date = $('op-date').value || todayISO();
-  state.operations.push({
-    id: makeId(),
+  const fields = {
     type: draft.type,
     amount: Math.round(amount * 100) / 100,
     account: draft.account,
     category: draft.category,
-    date,
+    date: $('op-date').value || todayISO(),
     note: $('op-note').value.trim(),
-    createdAt: Date.now()
-  });
-  saveState(state);
-  selectedDay = date;
+    updatedAt: Date.now()
+  };
+
+  if (draft.editingId) {
+    const op = state.operations.find(o => o.id === draft.editingId);
+    if (op) Object.assign(op, fields);
+  } else {
+    state.operations.push({ id: makeId(), createdAt: Date.now(), ...fields });
+  }
+  persist();
+  selectedDay = fields.date;
   $('op-dialog').close();
   renderAll();
+}
+
+function deleteFromDialog() {
+  if (!draft.editingId) return;
+  deleteOperation(draft.editingId);
+  $('op-dialog').close();
 }
 
 // Typing on a laptop keyboard works too while the dialog is open
@@ -715,9 +910,10 @@ function saveAccount(event) {
     currency: $('acc-currency').value,
     start: Number.isFinite(start) ? start : 0,
     savings,
-    goal: savings && goal > 0 ? goal : null
+    goal: savings && goal > 0 ? goal : null,
+    updatedAt: Date.now()
   });
-  saveState(state);
+  persist();
   $('acc-dialog').close();
   renderAll();
 }
@@ -726,14 +922,24 @@ function saveAccount(event) {
 
 function saveSettings(event) {
   event.preventDefault();
+  const stamp = Date.now();
   const limit = parseAmount($('limit-input').value);
-  state.monthlyLimit = limit > 0 ? limit : 0;
+  const newLimit = limit > 0 ? limit : 0;
+  if (newLimit !== state.monthlyLimit) {
+    state.monthlyLimit = newLimit;
+    state.limitUpdatedAt = stamp;
+  }
   $('start-balances').querySelectorAll('input').forEach(input => {
     const account = accountById(input.dataset.account);
     const value = parseAmount(input.value);
-    if (account) account.start = Number.isFinite(value) ? value : 0;
+    const start = Number.isFinite(value) ? value : 0;
+    // Only accounts that really changed get a new timestamp
+    if (account && account.start !== start) {
+      account.start = start;
+      account.updatedAt = stamp;
+    }
   });
-  saveState(state);
+  persist();
   renderAll();
   const saved = $('settings-saved');
   saved.hidden = false;
@@ -745,13 +951,14 @@ function saveSettings(event) {
 document.querySelectorAll('.nav-btn').forEach(btn => {
   btn.addEventListener('click', () => showView(btn.dataset.view));
 });
-$('nav-add').addEventListener('click', openOperationDialog);
+$('nav-add').addEventListener('click', () => openOperationDialog());
 $('all-ops').addEventListener('click', () => showView('calendar'));
 document.querySelectorAll('.month-prev').forEach(b => b.addEventListener('click', () => changeMonth(-1)));
 document.querySelectorAll('.month-next').forEach(b => b.addEventListener('click', () => changeMonth(1)));
 
 document.querySelectorAll('.segment button').forEach(btn => {
   btn.addEventListener('click', () => {
+    if (draft.type === btn.dataset.type) return;
     draft.type = btn.dataset.type;
     draft.category = CATEGORIES[draft.type][0].id;
     renderDraft();
@@ -759,6 +966,7 @@ document.querySelectorAll('.segment button').forEach(btn => {
 });
 $('op-form').addEventListener('submit', saveOperation);
 $('op-close').addEventListener('click', () => $('op-dialog').close());
+$('op-delete').addEventListener('click', deleteFromDialog);
 document.addEventListener('keydown', handleDialogKeys);
 
 $('add-account-btn').addEventListener('click', openAccountDialog);
@@ -768,22 +976,60 @@ $('acc-savings').addEventListener('change', e => { $('acc-goal-wrap').hidden = !
 $('acc-name').addEventListener('input', () => { $('acc-error').hidden = true; });
 
 $('settings-form').addEventListener('submit', saveSettings);
+$('logout').addEventListener('click', logout);
 
-$('lang-switch').addEventListener('click', () => {
+$('auth-form').addEventListener('submit', submitAuth);
+$('auth-switch').addEventListener('click', () => {
+  authMode = authMode === 'login' ? 'signup' : 'login';
+  $('auth-error').hidden = true;
+  $('auth-info').hidden = true;
+  renderAuth();
+});
+
+function switchLanguage() {
   setLang(getLang() === 'uk' ? 'en' : 'uk');
   applyStaticTexts();
   buildKeypad();
-  renderAll();
+  renderAuth();
+  if (user) {
+    setSyncStatus(syncStatus);
+    renderAll();
+  }
   if ($('op-dialog').open) renderDraft();
-});
+}
+$('lang-switch').addEventListener('click', switchLanguage);
+$('auth-lang').addEventListener('click', switchLanguage);
 
 laptop.addEventListener('change', renderAll);
 
+// Sync when the internet comes back and when the app is opened again
+window.addEventListener('online', syncNow);
+window.addEventListener('offline', () => user && setSyncStatus('offline'));
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') syncNow();
+});
+
 // ---------- Start ----------
-applyStaticTexts();
-buildKeypad();
-showView('home');
-refreshRates();
+
+async function start() {
+  applyStaticTexts();
+  buildKeypad();
+  if (!isConfigured) {
+    showAuth(t('auth_not_configured'));
+    return;
+  }
+  let current = null;
+  try {
+    current = await getUser();
+  } catch {
+    // Offline and the login library isn't available — use the last logged-in user
+    current = lastUser();
+  }
+  if (current) await enterApp(current);
+  else showAuth();
+}
+
+start();
 
 // Save the app on the device so it also opens without internet
 if ('serviceWorker' in navigator) {
