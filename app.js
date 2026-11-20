@@ -10,27 +10,12 @@ import { defaultState, loadState, saveState, mergeStates, rememberUser, lastUser
 import { isConfigured, getUser, signIn, signUp, signOut, pullRemote, pushRemote } from './sync.js';
 
 // ---------- Categories ----------
-// color = letter color in the badge and the slice color in the chart
-const CATEGORIES = {
-  expense: [
-    { id: 'food', color: '#F28CA2' },
-    { id: 'transport', color: '#8FA8FF' },
-    { id: 'study', color: '#C9B6FF' },
-    { id: 'fun', color: '#FFB3C1' },
-    { id: 'subscriptions', color: '#A9C8FF' },
-    { id: 'clothes', color: '#9EE6C9' },
-    { id: 'health', color: '#B9E59A' },
-    { id: 'gifts', color: '#FFD08A' },
-    { id: 'other', color: '#C9CEDB' }
-  ],
-  income: [
-    { id: 'scholarship', color: '#8FA8FF' },
-    { id: 'family', color: '#FFB3C1' },
-    { id: 'job', color: '#9EE6C9' },
-    { id: 'other_income', color: '#C9CEDB' }
-  ]
-};
-const ALL_CATEGORIES = [...CATEGORIES.expense, ...CATEGORIES.income];
+// Categories live in the data (state.categories), so you can add and delete them.
+// These are the colors you can pick for a new category.
+const CATEGORY_COLORS = [
+  '#F28CA2', '#FFB3C1', '#FF9E7A', '#FFD08A', '#B9E59A',
+  '#9EE6C9', '#A9C8FF', '#8FA8FF', '#C9B6FF', '#C9CEDB'
+];
 
 // ---------- App state ----------
 let user = null;              // { id, email } of the logged-in user
@@ -98,8 +83,20 @@ function accountLabel(account) {
   return account.group === 'mono' ? `mono · ${accountName(account)}` : accountName(account);
 }
 
+// Includes deleted categories, so old transactions still show their name
 function categoryById(id) {
-  return ALL_CATEGORIES.find(c => c.id === id) ?? { id, color: '#C9CEDB' };
+  return state.categories.find(c => c.id === id) ?? { id, color: '#C9CEDB' };
+}
+
+// Categories you can pick right now for 'expense' or 'income'
+function liveCategories(type) {
+  return state.categories.filter(c => !c.deleted && c.type === type);
+}
+
+// Built-in categories are translated; your own ones have a name
+function categoryName(id) {
+  const category = categoryById(id);
+  return category.name ?? t('cat_' + id);
 }
 
 // Converts an amount in any currency to hryvnias using the saved rate
@@ -472,13 +469,13 @@ function renderOperationRow(op, showDate) {
   row.type = 'button';
   row.addEventListener('click', () => openOperationDialog(op));
 
-  const badge = el('span', 'badge', t('cat_' + op.category).charAt(0));
+  const badge = el('span', 'badge', categoryName(op.category).charAt(0).toUpperCase());
   badge.style.color = category.color;
 
   const info = el('span', 'op-info');
-  info.append(el('span', 'op-title', op.note || t('cat_' + op.category)));
+  info.append(el('span', 'op-title', op.note || categoryName(op.category)));
   // If there's no note, the category is already the title, so don't repeat it
-  const details = op.note ? [t('cat_' + op.category), accountLabel(account)] : [accountLabel(account)];
+  const details = op.note ? [categoryName(op.category), accountLabel(account)] : [accountLabel(account)];
   if (showDate) details.unshift(dayLabel(op.date));
   // textContent (not innerHTML) so a note can't inject HTML
   info.append(el('span', 'muted small ellipsis', details.join(' · ')));
@@ -487,7 +484,7 @@ function renderOperationRow(op, showDate) {
   const amount = el('span', 'op-amount ' + (op.type === 'income' ? 'pos' : 'neg'),
     sign + formatMoney(op.amount, account?.currency ?? 'UAH'));
 
-  row.setAttribute('aria-label', `${t('edit_operation')}: ${op.note || t('cat_' + op.category)}, ${amount.textContent}`);
+  row.setAttribute('aria-label', `${t('edit_operation')}: ${op.note || categoryName(op.category)}, ${amount.textContent}`);
   row.append(badge, info, amount);
   return row;
 }
@@ -603,7 +600,7 @@ function renderStats() {
     offset += length;
   }
   svg.innerHTML = markup;
-  svg.setAttribute('aria-label', rows.map(([id, sum]) => `${t('cat_' + id)} ${Math.round((sum / total) * 100)}%`).join(', ') || t('no_expenses'));
+  svg.setAttribute('aria-label', rows.map(([id, sum]) => `${categoryName(id)} ${Math.round((sum / total) * 100)}%`).join(', ') || t('no_expenses'));
 
   const list = $('cat-list');
   list.innerHTML = '';
@@ -617,7 +614,7 @@ function renderStats() {
     const name = el('span', 'cat-name');
     const dot = el('i', 'dot');
     dot.style.background = categoryById(id).color;
-    name.append(dot, document.createTextNode(t('cat_' + id)));
+    name.append(dot, document.createTextNode(categoryName(id)));
     top.append(name, el('span', 'muted small', `${formatMoney(Math.round(sum))} · ${pct}%`));
     const bar = el('div', 'bar');
     const fill = el('div', 'bar-fill');
@@ -666,6 +663,11 @@ function renderBars() {
 
 function renderProfile() {
   $('profile-email').textContent = user?.email ?? '';
+  renderAvatar($('profile-avatar'));
+  // Don't overwrite the name while it's being typed
+  if (document.activeElement !== $('profile-name')) $('profile-name').value = state.profile.name;
+  $('photo-remove').hidden = !state.profile.photo;
+  renderCategoryManager();
   setSyncStatus(syncStatus);
 
   $('limit-input').value = state.monthlyLimit || '';
@@ -699,6 +701,173 @@ function renderProfile() {
     : t('rate_fallback', { usd: formatMoney(state.rates.USD), eur: formatMoney(state.rates.EUR) });
 }
 
+// ---------- Name and photo ----------
+
+// Puts the photo into a round avatar, or the first letter of the name/email
+function renderAvatar(node) {
+  node.innerHTML = '';
+  if (state.profile.photo) {
+    const img = el('img');
+    img.src = state.profile.photo;
+    img.alt = '';
+    node.append(img);
+  } else {
+    const source = state.profile.name || user?.email || '?';
+    node.textContent = source.charAt(0).toUpperCase();
+  }
+}
+
+function saveName() {
+  const name = $('profile-name').value.trim();
+  if (name === state.profile.name) return;
+  state.profile = { ...state.profile, name, updatedAt: Date.now() };
+  persist();
+  renderAll();
+}
+
+// Shrinks the chosen photo to a 256×256 square, so it's small enough to sync
+function loadPhoto(file) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const size = 256;
+      const side = Math.min(img.naturalWidth, img.naturalHeight);
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      // Cut the middle square out of the photo
+      canvas.getContext('2d').drawImage(
+        img,
+        (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side,
+        0, 0, size, size
+      );
+      URL.revokeObjectURL(url);
+      resolve(canvas.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('bad_image'));
+    };
+    img.src = url;
+  });
+}
+
+async function choosePhoto(event) {
+  const file = event.target.files[0];
+  event.target.value = '';           // lets you pick the same file again later
+  if (!file) return;
+  $('photo-error').hidden = true;
+  try {
+    const photo = await loadPhoto(file);
+    state.profile = { ...state.profile, photo, updatedAt: Date.now() };
+    persist();
+    renderAll();
+  } catch {
+    $('photo-error').hidden = false;
+  }
+}
+
+function removePhoto() {
+  state.profile = { ...state.profile, photo: null, updatedAt: Date.now() };
+  persist();
+  renderAll();
+}
+
+// ---------- Categories: list in the profile, create, delete ----------
+
+function renderCategoryManager() {
+  for (const type of ['expense', 'income']) {
+    const box = $('cat-manage-' + type);
+    box.innerHTML = '';
+    for (const cat of liveCategories(type)) {
+      const row = el('div', 'cat-manage-row');
+      const name = el('span', 'cat-name');
+      const dot = el('i', 'dot');
+      dot.style.background = cat.color;
+      name.append(dot, document.createTextNode(categoryName(cat.id)));
+      const del = el('button', 'icon-btn del', '×');
+      del.type = 'button';
+      del.setAttribute('aria-label', `${t('delete')}: ${categoryName(cat.id)}`);
+      del.addEventListener('click', () => askDeleteCategory(cat.id));
+      row.append(name, del);
+      box.append(row);
+    }
+  }
+}
+
+function askDeleteCategory(id) {
+  const category = categoryById(id);
+  if (liveCategories(category.type).length <= 1) {
+    alert(t('category_last'));
+    return;
+  }
+  if (!confirm(t('delete_category_confirm', { name: categoryName(id) }))) return;
+  Object.assign(category, { deleted: true, updatedAt: Date.now() });
+  persist();
+  renderAll();
+}
+
+let newCategoryColor = CATEGORY_COLORS[0];
+let categoryFromOperation = false;   // true = opened from the transaction dialog
+
+function renderColorChoices() {
+  const box = $('cat-colors');
+  box.innerHTML = '';
+  for (const color of CATEGORY_COLORS) {
+    const swatch = el('button', 'swatch' + (color === newCategoryColor ? ' active' : ''));
+    swatch.type = 'button';
+    swatch.style.background = color;
+    swatch.setAttribute('aria-label', color);
+    swatch.setAttribute('aria-pressed', color === newCategoryColor);
+    swatch.addEventListener('click', () => {
+      newCategoryColor = color;
+      renderColorChoices();
+    });
+    box.append(swatch);
+  }
+}
+
+function openCategoryDialog(type = 'expense', fromOperation = false) {
+  categoryFromOperation = fromOperation;
+  $('cat-form').reset();
+  $('cat-type').value = type;
+  $('cat-error').hidden = true;
+  // A color that's not used yet, if there is one
+  const used = new Set(liveCategories(type).map(c => c.color));
+  newCategoryColor = CATEGORY_COLORS.find(c => !used.has(c)) ?? CATEGORY_COLORS[0];
+  renderColorChoices();
+  $('cat-dialog').showModal();
+  $('cat-name').focus();
+}
+
+function saveCategory(event) {
+  event.preventDefault();
+  const name = $('cat-name').value.trim();
+  if (!name) {
+    $('cat-error').hidden = false;
+    $('cat-name').focus();
+    return;
+  }
+  const category = {
+    id: makeId(),
+    type: $('cat-type').value,
+    name,
+    color: newCategoryColor,
+    updatedAt: Date.now()
+  };
+  state.categories.push(category);
+  persist();
+  $('cat-dialog').close();
+  // Opened from the transaction dialog — pick the new category there right away
+  if (categoryFromOperation && $('op-dialog').open) {
+    draft.type = category.type;
+    draft.category = category.id;
+    renderDraft();
+  }
+  renderAll();
+}
+
 // ---------- Rendering everything ----------
 
 const VIEW_TITLES = { home: 'title', calendar: 'nav_calendar', stats: 'nav_stats', profile: 'nav_profile' };
@@ -710,6 +879,7 @@ function renderAll() {
   // On a laptop the app name is already in the sidebar, so Home gets its own title
   const titleKey = currentView === 'home' && laptop.matches ? 'nav_home' : VIEW_TITLES[currentView];
   $('view-title').textContent = t(titleKey);
+  renderAvatar($('top-avatar'));
   renderMonthLabels();
   if (currentView === 'home') {
     renderBalance();
@@ -831,16 +1001,23 @@ function renderDraft() {
 
   const grid = $('op-categories');
   grid.innerHTML = '';
-  for (const cat of CATEGORIES[draft.type]) {
+  for (const cat of liveCategories(draft.type)) {
     const btn = el('button', 'cat' + (cat.id === draft.category ? ' active' : ''));
     btn.type = 'button';
     btn.setAttribute('aria-pressed', cat.id === draft.category);
-    const badge = el('span', 'badge big', t('cat_' + cat.id).charAt(0));
+    const badge = el('span', 'badge big', categoryName(cat.id).charAt(0).toUpperCase());
     badge.style.color = cat.color;
-    btn.append(badge, el('span', 'cat-label', t('cat_' + cat.id)));
+    btn.append(badge, el('span', 'cat-label', categoryName(cat.id)));
     btn.addEventListener('click', () => { draft.category = cat.id; renderDraft(); });
     grid.append(btn);
   }
+  // Last tile: create a new category right here
+  const add = el('button', 'cat add');
+  add.type = 'button';
+  add.append(el('span', 'badge big', '+'), el('span', 'cat-label', t('new_short')));
+  add.setAttribute('aria-label', t('new_category'));
+  add.addEventListener('click', () => openCategoryDialog(draft.type, true));
+  grid.append(add);
 }
 
 // op = an existing operation to edit, or nothing for a new one
@@ -862,7 +1039,7 @@ function openOperationDialog(op) {
       type: 'expense',
       amount: '',
       account: draft.account && accountById(draft.account) && !accountById(draft.account).deleted ? draft.account : firstAccount,
-      category: CATEGORIES.expense[0].id
+      category: liveCategories('expense')[0]?.id
     };
     $('op-date').value = currentView === 'calendar' ? selectedDay : todayISO();
     $('op-note').value = '';
@@ -909,7 +1086,7 @@ function deleteFromDialog() {
 
 // Typing on a laptop keyboard works too while the dialog is open
 function handleDialogKeys(event) {
-  if (!$('op-dialog').open) return;
+  if (!$('op-dialog').open || $('cat-dialog').open) return;
   if (event.target.tagName === 'INPUT') return;    // let the note/date fields work normally
   if (/^[0-9]$/.test(event.key)) pressKey(event.key);
   else if (event.key === ',' || event.key === '.') pressKey(',');
@@ -1028,7 +1205,7 @@ document.querySelectorAll('.segment button').forEach(btn => {
   btn.addEventListener('click', () => {
     if (draft.type === btn.dataset.type) return;
     draft.type = btn.dataset.type;
-    draft.category = CATEGORIES[draft.type][0].id;
+    draft.category = liveCategories(draft.type)[0]?.id;
     renderDraft();
   });
 });
@@ -1051,6 +1228,17 @@ $('bal-delete').addEventListener('click', () => {
 });
 $('bal-input').addEventListener('input', () => { $('bal-error').hidden = true; });
 $('logout').addEventListener('click', logout);
+
+$('top-avatar').addEventListener('click', () => showView('profile'));
+$('profile-name').addEventListener('change', saveName);
+$('photo-choose').addEventListener('click', () => $('photo-input').click());
+$('photo-input').addEventListener('change', choosePhoto);
+$('photo-remove').addEventListener('click', removePhoto);
+
+$('add-category-btn').addEventListener('click', () => openCategoryDialog('expense'));
+$('cat-form').addEventListener('submit', saveCategory);
+$('cat-close').addEventListener('click', () => $('cat-dialog').close());
+$('cat-name').addEventListener('input', () => { $('cat-error').hidden = true; });
 
 $('auth-form').addEventListener('submit', submitAuth);
 $('auth-switch').addEventListener('click', () => {
