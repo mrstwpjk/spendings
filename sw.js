@@ -5,7 +5,7 @@
 // so phones drop the old copy.
 // =====================================================
 
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const CACHE = `spendings-${CACHE_VERSION}`;
 
 // Everything the app needs to start
@@ -16,6 +16,8 @@ const APP_FILES = [
   './app.js',
   './i18n.js',
   './storage.js',
+  './sync.js',
+  './config.js',
   './manifest.json',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -44,8 +46,12 @@ self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET') return;
 
-  // The exchange rate must always be fresh, so it is never cached here
-  if (new URL(request.url).hostname === 'api.monobank.ua') return;
+  // Only the app's own files, the font and the login library are kept offline.
+  // Everything else (Supabase data, the monobank rate) always goes to the network.
+  const url = new URL(request.url);
+  const cacheable = url.origin === self.location.origin ||
+    ['fonts.googleapis.com', 'fonts.gstatic.com', 'cdn.jsdelivr.net'].includes(url.hostname);
+  if (!cacheable) return;
 
   event.respondWith(
     caches.open(CACHE).then(async cache => {
