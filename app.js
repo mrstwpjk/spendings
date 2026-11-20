@@ -113,11 +113,30 @@ function opInUAH(op) {
   return toUAH(op.amount, account?.currency ?? 'UAH');
 }
 
-// Money in the account's own currency: start + income − expenses
-function accountBalance(account) {
+// How much all recorded operations changed an account: income − expenses
+function operationsTotal(account) {
   return liveOps()
     .filter(op => op.account === account.id)
-    .reduce((sum, op) => op.type === 'income' ? sum + op.amount : sum - op.amount, account.start);
+    .reduce((sum, op) => op.type === 'income' ? sum + op.amount : sum - op.amount, 0);
+}
+
+// Money on the account right now, in its own currency
+function accountBalance(account) {
+  return round2(account.start + operationsTotal(account));
+}
+
+// "There's X on this account now": the starting amount is adjusted so the
+// balance becomes exactly X, while all operations stay as they are
+function setCurrentBalance(account, current) {
+  const newStart = round2(current - operationsTotal(account));
+  if (newStart === account.start) return false;
+  account.start = newStart;
+  account.updatedAt = Date.now();
+  return true;
+}
+
+function round2(x) {
+  return Math.round(x * 100) / 100;
 }
 
 // Only everyday accounts count towards spending and the limit, not savings
@@ -358,9 +377,13 @@ function renderAccounts() {
     box.append(el('p', 'group-title muted small', t('group_' + group.key)));
     const grid = el('div', 'accounts');
     for (const account of group.accounts) {
-      const card = el('div', `acc acc-${account.style ?? 'custom'}`);
+      // Tapping a card lets you correct its balance
+      const card = el('button', `acc acc-${account.style ?? 'custom'}`);
+      card.type = 'button';
       card.append(el('span', 'acc-name', accountName(account)));
       card.append(el('strong', 'acc-sum', formatMoney(accountBalance(account), account.currency)));
+      card.setAttribute('aria-label', `${t('balance_edit_title')}: ${accountName(account)}, ${formatMoney(accountBalance(account), account.currency)}`);
+      card.addEventListener('click', () => openBalanceDialog(account.id));
       grid.append(card);
     }
     box.append(grid);
@@ -381,7 +404,9 @@ function renderSavings() {
   }
   for (const account of savings) {
     const balance = accountBalance(account);
-    const row = el('div', 'row-between');
+    const row = el('button', 'row-between savings-row');
+    row.type = 'button';
+    row.addEventListener('click', () => openBalanceDialog(account.id));
     row.append(el('span', '', accountName(account)));
     const value = account.goal
       ? t('goal_progress', { have: formatMoney(balance, account.currency), goal: formatMoney(account.goal, account.currency) })
@@ -653,7 +678,7 @@ function renderProfile() {
     const input = el('input');
     input.type = 'text';
     input.inputMode = 'decimal';
-    input.value = account.start;
+    input.value = accountBalance(account);     // the balance right now, not the starting amount
     input.dataset.account = account.id;
     label.append(input);
     row.append(label);
@@ -923,6 +948,37 @@ function saveAccount(event) {
   renderAll();
 }
 
+// ---------- Balance dialog (tap on an account card) ----------
+
+let balanceAccountId = null;
+
+function openBalanceDialog(accountId) {
+  const account = accountById(accountId);
+  if (!account) return;
+  balanceAccountId = accountId;
+  $('bal-label').textContent = t('balance_now', {
+    name: accountLabel(account),
+    cur: currencySymbol(account.currency)
+  });
+  $('bal-input').value = String(accountBalance(account)).replace('.', ',');
+  $('bal-error').hidden = true;
+  $('bal-dialog').showModal();
+  $('bal-input').select();
+}
+
+function saveBalance(event) {
+  event.preventDefault();
+  const account = accountById(balanceAccountId);
+  const value = parseAmount($('bal-input').value);
+  if (!Number.isFinite(value)) {
+    $('bal-error').hidden = false;
+    return;
+  }
+  if (account && setCurrentBalance(account, value)) persist();
+  $('bal-dialog').close();
+  renderAll();
+}
+
 // ---------- Settings ----------
 
 function saveSettings(event) {
@@ -937,12 +993,8 @@ function saveSettings(event) {
   $('start-balances').querySelectorAll('input').forEach(input => {
     const account = accountById(input.dataset.account);
     const value = parseAmount(input.value);
-    const start = Number.isFinite(value) ? value : 0;
-    // Only accounts that really changed get a new timestamp
-    if (account && account.start !== start) {
-      account.start = start;
-      account.updatedAt = stamp;
-    }
+    // Only accounts whose balance really changed get updated
+    if (account && Number.isFinite(value)) setCurrentBalance(account, value);
   });
   persist();
   renderAll();
@@ -981,6 +1033,9 @@ $('acc-savings').addEventListener('change', e => { $('acc-goal-wrap').hidden = !
 $('acc-name').addEventListener('input', () => { $('acc-error').hidden = true; });
 
 $('settings-form').addEventListener('submit', saveSettings);
+$('bal-form').addEventListener('submit', saveBalance);
+$('bal-close').addEventListener('click', () => $('bal-dialog').close());
+$('bal-input').addEventListener('input', () => { $('bal-error').hidden = true; });
 $('logout').addEventListener('click', logout);
 
 $('auth-form').addEventListener('submit', submitAuth);
