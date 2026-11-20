@@ -426,3 +426,45 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
   .del { opacity: 0; transition: opacity 0.15s; }
   .op:hover .del, .start-row .del, .del:focus-visible { opacity: 1; }
 }
+
+/* =====================================================
+   Login screen, sync indicator, editable rows
+   ===================================================== */
+.auth {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+.auth-box { width: 100%; max-width: 400px; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center; }
+.auth-box h1 { font-size: 30px; font-weight: 700; }
+.auth-logo { border-radius: 18px; }
+.auth-box .card { width: 100%; text-align: left; margin-top: 12px; }
+.auth-box h2 { font-size: 20px; font-weight: 700; }
+.auth-box .link { align-self: center; }
+.btn:disabled { opacity: 0.6; cursor: wait; }
+.btn.secondary { background: var(--surface-2); color: var(--text); }
+.btn.danger { background: transparent; color: #FF8FA3; border: 1px solid #5A2433; }
+
+.top-right { display: flex; align-items: center; gap: 10px; }
+.sync-dot { width: 10px; height: 10px; border-radius: 5px; background: var(--muted); }
+.sync-dot.ok { background: #6EE7B7; }
+.sync-dot.syncing { background: var(--sapphire-light); animation: pulse 1s ease-in-out infinite; }
+.sync-dot.offline { background: #FFD08A; }
+.sync-dot.error { background: #FF5D7A; }
+@keyframes pulse { 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) { .sync-dot.syncing { animation: none; } }
+
+/* Operation rows are buttons: tap to edit */
+button.op {
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--surface-2);
+  text-align: left;
+  color: inherit;
+  border-radius: 0;
+}
+button.op:last-child { border-bottom: none; }
+button.op:hover .op-title { color: var(--sapphire-light); }
+button.op:focus-visible { outline: 2px solid var(--sapphire); outline-offset: 2px; border-radius: 8px; }
