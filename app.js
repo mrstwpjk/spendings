@@ -725,25 +725,21 @@ function saveName() {
   renderAll();
 }
 
-// Shrinks the chosen photo to a 256×256 square, so it's small enough to sync
-function loadPhoto(file) {
+// Opens the chosen file as a picture. Very large photos are made smaller
+// first, so moving them around in the crop window stays smooth.
+function loadImage(file) {
   return new Promise((resolve, reject) => {
     const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
-      const size = 256;
-      const side = Math.min(img.naturalWidth, img.naturalHeight);
-      const canvas = document.createElement('canvas');
-      canvas.width = size;
-      canvas.height = size;
-      // Cut the middle square out of the photo
-      canvas.getContext('2d').drawImage(
-        img,
-        (img.naturalWidth - side) / 2, (img.naturalHeight - side) / 2, side, side,
-        0, 0, size, size
-      );
       URL.revokeObjectURL(url);
-      resolve(canvas.toDataURL('image/jpeg', 0.82));
+      const max = 1600;
+      const ratio = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.naturalWidth * ratio);
+      canvas.height = Math.round(img.naturalHeight * ratio);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas);
     };
     img.onerror = () => {
       URL.revokeObjectURL(url);
@@ -759,13 +755,145 @@ async function choosePhoto(event) {
   if (!file) return;
   $('photo-error').hidden = true;
   try {
-    const photo = await loadPhoto(file);
-    state.profile = { ...state.profile, photo, updatedAt: Date.now() };
-    persist();
-    renderAll();
+    openCropDialog(await loadImage(file));
   } catch {
     $('photo-error').hidden = false;
   }
+}
+
+// ---------- Cropping the photo ----------
+// The picture lies under a square window. x, y = where its top-left corner is
+// (in window pixels), scale = how much it's enlarged. Whatever is inside the
+// circle when you press Save becomes the profile photo.
+
+const crop = { img: null, size: 0, baseScale: 1, zoom: 1, x: 0, y: 0 };
+const pointers = new Map();          // fingers / mouse currently on the photo
+let pinchStart = null;
+
+function cropScale() {
+  return crop.baseScale * crop.zoom;
+}
+
+// Doesn't let the photo move so far that an empty edge shows in the window
+function clampCrop() {
+  const w = crop.img.width * cropScale();
+  const h = crop.img.height * cropScale();
+  crop.x = Math.min(0, Math.max(crop.size - w, crop.x));
+  crop.y = Math.min(0, Math.max(crop.size - h, crop.y));
+}
+
+function drawCrop() {
+  const canvas = $('crop-canvas');
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, crop.size, crop.size);
+  ctx.drawImage(crop.img, crop.x, crop.y, crop.img.width * cropScale(), crop.img.height * cropScale());
+}
+
+// Zooms in or out keeping the point (px, py) of the window in place
+function setZoom(zoom, px = crop.size / 2, py = crop.size / 2) {
+  const before = cropScale();
+  crop.zoom = Math.min(4, Math.max(1, zoom));
+  const after = cropScale();
+  crop.x = px - ((px - crop.x) / before) * after;
+  crop.y = py - ((py - crop.y) / before) * after;
+  clampCrop();
+  $('crop-zoom').value = crop.zoom;
+  drawCrop();
+}
+
+function openCropDialog(img) {
+  $('crop-dialog').showModal();
+  // The window's size is known only once the dialog is visible
+  const size = $('crop-area').clientWidth;
+  const dpr = window.devicePixelRatio || 1;
+  const canvas = $('crop-canvas');
+  canvas.width = size * dpr;
+  canvas.height = size * dpr;
+  // Start with the photo just covering the window, centered
+  Object.assign(crop, {
+    img,
+    size,
+    baseScale: Math.max(size / img.width, size / img.height),
+    zoom: 1
+  });
+  crop.x = (size - img.width * cropScale()) / 2;
+  crop.y = (size - img.height * cropScale()) / 2;
+  $('crop-zoom').value = 1;
+  pointers.clear();
+  pinchStart = null;
+  drawCrop();
+}
+
+// Position of a finger inside the window
+function pointerPos(event) {
+  const rect = $('crop-area').getBoundingClientRect();
+  return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+}
+
+function pinchInfo() {
+  const [a, b] = [...pointers.values()];
+  return {
+    distance: Math.hypot(a.x - b.x, a.y - b.y),
+    mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+  };
+}
+
+function cropPointerDown(event) {
+  $('crop-area').setPointerCapture(event.pointerId);
+  pointers.set(event.pointerId, pointerPos(event));
+  if (pointers.size === 2) pinchStart = { ...pinchInfo(), zoom: crop.zoom };
+}
+
+function cropPointerMove(event) {
+  if (!pointers.has(event.pointerId)) return;
+  const prev = pointers.get(event.pointerId);
+  const pos = pointerPos(event);
+  pointers.set(event.pointerId, pos);
+  if (pointers.size === 1) {
+    // One finger: move the photo
+    crop.x += pos.x - prev.x;
+    crop.y += pos.y - prev.y;
+    clampCrop();
+    drawCrop();
+  } else if (pointers.size === 2 && pinchStart) {
+    // Two fingers: zoom by how far apart they are
+    const now = pinchInfo();
+    setZoom(pinchStart.zoom * (now.distance / pinchStart.distance), now.mid.x, now.mid.y);
+  }
+}
+
+function cropPointerUp(event) {
+  pointers.delete(event.pointerId);
+  if (pointers.size < 2) pinchStart = null;
+}
+
+// Mouse wheel / trackpad on a laptop zooms too
+function cropWheel(event) {
+  event.preventDefault();
+  const pos = pointerPos(event);
+  setZoom(crop.zoom * Math.exp(-event.deltaY / 300), pos.x, pos.y);
+}
+
+// Cuts out what's in the window and saves it as a 256×256 photo
+function saveCrop(event) {
+  event.preventDefault();
+  const scale = cropScale();
+  const out = document.createElement('canvas');
+  out.width = 256;
+  out.height = 256;
+  out.getContext('2d').drawImage(
+    crop.img,
+    -crop.x / scale, -crop.y / scale, crop.size / scale, crop.size / scale,
+    0, 0, 256, 256
+  );
+  const photo = out.toDataURL('image/jpeg', 0.85);
+  state.profile = { ...state.profile, photo, updatedAt: Date.now() };
+  persist();
+  $('crop-dialog').close();
+  crop.img = null;                   // free the big picture from memory
+  renderAll();
 }
 
 function removePhoto() {
@@ -1234,6 +1362,15 @@ $('profile-name').addEventListener('change', saveName);
 $('photo-choose').addEventListener('click', () => $('photo-input').click());
 $('photo-input').addEventListener('change', choosePhoto);
 $('photo-remove').addEventListener('click', removePhoto);
+
+$('crop-form').addEventListener('submit', saveCrop);
+$('crop-close').addEventListener('click', () => $('crop-dialog').close());
+$('crop-zoom').addEventListener('input', e => setZoom(parseFloat(e.target.value)));
+$('crop-area').addEventListener('pointerdown', cropPointerDown);
+$('crop-area').addEventListener('pointermove', cropPointerMove);
+$('crop-area').addEventListener('pointerup', cropPointerUp);
+$('crop-area').addEventListener('pointercancel', cropPointerUp);
+$('crop-area').addEventListener('wheel', cropWheel, { passive: false });
 
 $('add-category-btn').addEventListener('click', () => openCategoryDialog('expense'));
 $('cat-form').addEventListener('submit', saveCategory);
