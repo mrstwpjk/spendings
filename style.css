@@ -468,3 +468,12 @@ button.op {
 button.op:last-child { border-bottom: none; }
 button.op:hover .op-title { color: var(--sapphire-light); }
 button.op:focus-visible { outline: 2px solid var(--sapphire); outline-offset: 2px; border-radius: 8px; }
+
+/* Account cards and savings rows are buttons: tap to correct the balance */
+button.acc { border: none; font: inherit; text-align: left; cursor: pointer; }
+button.acc.acc-black { border: 1px solid var(--border); }
+button.acc.acc-usd { border: 1px solid #2C3E8C; }
+button.acc.acc-cash { border: 1px solid var(--surface-2); }
+button.acc:hover { filter: brightness(1.12); }
+button.acc:focus-visible, .savings-row:focus-visible { outline: 2px solid var(--sapphire-light); outline-offset: 2px; }
+.savings-row { width: 100%; background: none; border: none; padding: 2px 0; color: inherit; font: inherit; text-align: left; }
