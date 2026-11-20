@@ -76,6 +76,7 @@
       <header class="top">
         <h1 id="view-title">Spendings</h1>
         <div class="top-right">
+          <button type="button" id="top-avatar" class="avatar small" data-i18n-aria="nav_profile"></button>
           <span id="sync-dot" class="sync-dot" role="status"></span>
           <button id="lang-switch" class="chip">EN</button>
         </div>
@@ -182,6 +183,19 @@
       <!-- ================= Profile / settings ================= -->
       <section id="view-profile" class="view" hidden>
         <div class="card form">
+          <div class="profile-head">
+            <div id="profile-avatar" class="avatar big"></div>
+            <div class="profile-photo-btns">
+              <button type="button" id="photo-choose" class="btn secondary" data-i18n="photo_choose">Обрати фото</button>
+              <button type="button" id="photo-remove" class="link" data-i18n="photo_remove">Прибрати фото</button>
+              <input id="photo-input" type="file" accept="image/*" hidden>
+            </div>
+          </div>
+          <p id="photo-error" class="error" data-i18n="photo_error" hidden></p>
+          <label>
+            <span data-i18n="profile_name">Ім'я</span>
+            <input id="profile-name" type="text" autocomplete="given-name" maxlength="40" data-i18n-placeholder="profile_name_placeholder">
+          </label>
           <p class="muted small" data-i18n="account">Акаунт</p>
           <p id="profile-email" class="strong"></p>
           <p id="sync-text" class="small muted"></p>
@@ -197,6 +211,18 @@
           <button type="submit" class="btn primary" data-i18n="save">Зберегти</button>
           <p id="settings-saved" class="pos small" data-i18n="saved" hidden>Збережено</p>
         </form>
+        <div class="card form">
+          <p class="strong" data-i18n="categories">Категорії</p>
+          <p class="muted small" data-i18n="categories_hint">Натисни ×, щоб видалити. Старі операції з видаленою категорією залишаться.</p>
+          <p class="muted small" data-i18n="expenses">Витрати</p>
+          <div id="cat-manage-expense" class="cat-manage"></div>
+          <p class="muted small" data-i18n="incomes">Надходження</p>
+          <div id="cat-manage-income" class="cat-manage"></div>
+          <button type="button" id="add-category-btn" class="dashed-btn">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            <span data-i18n="new_category">Нова категорія</span>
+          </button>
+        </div>
         <div class="card">
           <p class="strong" data-i18n="exchange_rate">Курс валют</p>
           <p id="rate-info" class="muted small"></p>
@@ -280,7 +306,7 @@
     </form>
   </dialog>
 
-  <!-- ================= Dialog: account balance / delete account ================= -->
+  <!-- ================= Dialog: account balance ================= -->
   <dialog id="bal-dialog" class="sheet">
     <form id="bal-form" class="form" novalidate>
       <div class="sheet-head">
@@ -298,6 +324,34 @@
       <p class="muted small" data-i18n="balance_hint">Записані витрати й надходження не зміняться: застосунок лише підлаштує рахунок під реальну суму.</p>
       <button type="submit" class="btn primary" data-i18n="save">Зберегти</button>
       <button type="button" id="bal-delete" class="btn danger" data-i18n="delete_account">Видалити рахунок</button>
+    </form>
+  </dialog>
+
+  <!-- ================= Dialog: new category ================= -->
+  <dialog id="cat-dialog" class="sheet">
+    <form id="cat-form" class="form" novalidate>
+      <div class="sheet-head">
+        <button type="button" class="icon-btn" id="cat-close" data-i18n-aria="cancel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+        <h3 data-i18n="new_category">Нова категорія</h3>
+        <span class="spacer"></span>
+      </div>
+      <label>
+        <span data-i18n="category_name">Назва</span>
+        <input id="cat-name" type="text" maxlength="24" autocomplete="off" data-i18n-placeholder="category_name_placeholder">
+      </label>
+      <p id="cat-error" class="error" data-i18n="error_category_name" hidden></p>
+      <label>
+        <span data-i18n="category_type">Для чого</span>
+        <select id="cat-type">
+          <option value="expense" data-i18n="expense">Витрата</option>
+          <option value="income" data-i18n="income">Надходження</option>
+        </select>
+      </label>
+      <p class="muted small" data-i18n="category_color">Колір</p>
+      <div id="cat-colors" class="swatches"></div>
+      <button type="submit" class="btn primary" data-i18n="save">Зберегти</button>
     </form>
   </dialog>
 
