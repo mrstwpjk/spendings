@@ -355,6 +355,29 @@
     </form>
   </dialog>
 
+    <!-- ================= Dialog: crop profile photo ================= -->
+  <dialog id="crop-dialog" class="sheet">
+    <form id="crop-form" class="form" novalidate>
+      <div class="sheet-head">
+        <button type="button" class="icon-btn" id="crop-close" data-i18n-aria="cancel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+        <h3 data-i18n="crop_title">Обріж фото</h3>
+        <span class="spacer"></span>
+      </div>
+      <div id="crop-area" class="crop-area">
+        <canvas id="crop-canvas"></canvas>
+        <div class="crop-ring" aria-hidden="true"></div>
+      </div>
+      <p class="muted small" data-i18n="crop_hint">Перетягни фото пальцем, щоб вибрати, що буде в кружечку. Збільшуй повзунком або двома пальцями.</p>
+      <label>
+        <span data-i18n="zoom">Масштаб</span>
+        <input id="crop-zoom" class="range" type="range" min="1" max="4" step="0.01" value="1">
+      </label>
+      <button type="submit" class="btn primary" data-i18n="save">Зберегти</button>
+    </form>
+  </dialog>
+  
   <script type="module" src="app.js"></script>
 </body>
 </html>
