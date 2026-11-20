@@ -377,7 +377,7 @@ function renderAccounts() {
     box.append(el('p', 'group-title muted small', t('group_' + group.key)));
     const grid = el('div', 'accounts');
     for (const account of group.accounts) {
-      // Tapping a card lets you correct its balance
+      // Tapping a card lets you correct its balance or delete it
       const card = el('button', `acc acc-${account.style ?? 'custom'}`);
       card.type = 'button';
       card.append(el('span', 'acc-name', accountName(account)));
@@ -682,14 +682,12 @@ function renderProfile() {
     input.dataset.account = account.id;
     label.append(input);
     row.append(label);
-    // Built-in accounts have no name; only accounts you added can be deleted
-    if (account.name) {
-      const del = el('button', 'icon-btn del', '×');
-      del.type = 'button';
-      del.setAttribute('aria-label', `${t('delete')}: ${account.name}`);
-      del.addEventListener('click', () => deleteAccount(account.id));
-      row.append(del);
-    }
+    // Any account can be deleted, after a confirmation
+    const del = el('button', 'icon-btn del', '×');
+    del.type = 'button';
+    del.setAttribute('aria-label', `${t('delete')}: ${accountLabel(account)}`);
+    del.addEventListener('click', () => askDeleteAccount(account.id));
+    row.append(del);
     box.append(row);
   }
 
@@ -769,6 +767,15 @@ function deleteAccount(id) {
   }
   persist();
   renderAll();
+}
+
+// Asks first, because the account's transactions are deleted too
+function askDeleteAccount(id) {
+  const account = accountById(id);
+  if (!account) return false;
+  if (!confirm(t('delete_account_confirm', { name: accountLabel(account) }))) return false;
+  deleteAccount(id);
+  return true;
 }
 
 // ---------- Operation dialog: new or edit (keypad) ----------
@@ -1008,7 +1015,11 @@ function saveSettings(event) {
 document.querySelectorAll('.nav-btn').forEach(btn => {
   btn.addEventListener('click', () => showView(btn.dataset.view));
 });
-$('nav-add').addEventListener('click', () => openOperationDialog());
+$('nav-add').addEventListener('click', () => {
+  // No accounts left — create one first
+  if (!liveAccounts().length) openAccountDialog();
+  else openOperationDialog();
+});
 $('all-ops').addEventListener('click', () => showView('calendar'));
 document.querySelectorAll('.month-prev').forEach(b => b.addEventListener('click', () => changeMonth(-1)));
 document.querySelectorAll('.month-next').forEach(b => b.addEventListener('click', () => changeMonth(1)));
@@ -1035,6 +1046,9 @@ $('acc-name').addEventListener('input', () => { $('acc-error').hidden = true; })
 $('settings-form').addEventListener('submit', saveSettings);
 $('bal-form').addEventListener('submit', saveBalance);
 $('bal-close').addEventListener('click', () => $('bal-dialog').close());
+$('bal-delete').addEventListener('click', () => {
+  if (askDeleteAccount(balanceAccountId)) $('bal-dialog').close();
+});
 $('bal-input').addEventListener('input', () => { $('bal-error').hidden = true; });
 $('logout').addEventListener('click', logout);
 
