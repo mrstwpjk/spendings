@@ -11,6 +11,24 @@ const USER_KEY = id => `spendings-v3-${id}`;
 const LAST_USER_KEY = 'spendings-last-user';
 const OLD_KEYS = ['spendings-v2', 'spendings-v1'];   // data from before accounts existed
 
+// Built-in categories have no name: it comes from the translations (cat_<id>).
+// Categories you create get a name.
+const DEFAULT_CATEGORIES = [
+  { id: 'food', type: 'expense', color: '#F28CA2' },
+  { id: 'transport', type: 'expense', color: '#8FA8FF' },
+  { id: 'study', type: 'expense', color: '#C9B6FF' },
+  { id: 'fun', type: 'expense', color: '#FFB3C1' },
+  { id: 'subscriptions', type: 'expense', color: '#A9C8FF' },
+  { id: 'clothes', type: 'expense', color: '#9EE6C9' },
+  { id: 'health', type: 'expense', color: '#B9E59A' },
+  { id: 'gifts', type: 'expense', color: '#FFD08A' },
+  { id: 'other', type: 'expense', color: '#C9CEDB' },
+  { id: 'scholarship', type: 'income', color: '#8FA8FF' },
+  { id: 'family', type: 'income', color: '#FFB3C1' },
+  { id: 'job', type: 'income', color: '#9EE6C9' },
+  { id: 'other_income', type: 'income', color: '#C9CEDB' }
+];
+
 export function defaultState() {
   return {
     accounts: [
@@ -24,6 +42,10 @@ export function defaultState() {
     // { id, type: 'expense' | 'income', amount, account, category, date: 'YYYY-MM-DD', note, createdAt, updatedAt }
     // amount is in the account's own currency
     operations: [],
+    // { id, type, color, name?, updatedAt, deleted? }
+    categories: DEFAULT_CATEGORIES.map(c => ({ ...c, updatedAt: 0 })),
+    // Name and photo (a small JPEG as a data: URL)
+    profile: { name: '', photo: null, updatedAt: 0 },
     monthlyLimit: 5000,
     limitUpdatedAt: 0,
     // UAH per 1 unit of currency; refreshed from monobank
@@ -116,10 +138,13 @@ export function mergeStates(local, remote) {
   if (!remote) return local;
   const remoteLimitNewer = (remote.limitUpdatedAt ?? 0) > (local.limitUpdatedAt ?? 0);
   const remoteRatesNewer = (remote.rates?.updatedAt ?? 0) > (local.rates?.updatedAt ?? 0);
+  const remoteProfileNewer = (remote.profile?.updatedAt ?? 0) > (local.profile?.updatedAt ?? 0);
   return {
     ...local,
     accounts: mergeById(local.accounts, remote.accounts),
     operations: mergeById(local.operations, remote.operations),
+    categories: mergeById(local.categories, remote.categories),
+    profile: remoteProfileNewer ? remote.profile : local.profile,
     monthlyLimit: remoteLimitNewer ? remote.monthlyLimit : local.monthlyLimit,
     limitUpdatedAt: Math.max(local.limitUpdatedAt ?? 0, remote.limitUpdatedAt ?? 0),
     rates: remoteRatesNewer ? remote.rates : local.rates
