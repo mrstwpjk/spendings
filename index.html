@@ -280,8 +280,7 @@
     </form>
   </dialog>
 
-  <script type="module" src="app.js"></script>
-    <!-- ================= Dialog: account balance ================= -->
+  <!-- ================= Dialog: account balance / delete account ================= -->
   <dialog id="bal-dialog" class="sheet">
     <form id="bal-form" class="form" novalidate>
       <div class="sheet-head">
@@ -298,7 +297,10 @@
       <p id="bal-error" class="error" data-i18n="error_balance" hidden></p>
       <p class="muted small" data-i18n="balance_hint">Записані витрати й надходження не зміняться: застосунок лише підлаштує рахунок під реальну суму.</p>
       <button type="submit" class="btn primary" data-i18n="save">Зберегти</button>
+      <button type="button" id="bal-delete" class="btn danger" data-i18n="delete_account">Видалити рахунок</button>
     </form>
   </dialog>
+
+  <script type="module" src="app.js"></script>
 </body>
 </html>
