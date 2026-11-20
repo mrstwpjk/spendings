@@ -6,6 +6,33 @@
 const translations = {
   uk: {
     title: 'Spendings',
+    auth_tagline: 'Твої витрати на всіх пристроях',
+    auth_title_login: 'Вхід',
+    auth_title_signup: 'Реєстрація',
+    email: 'Пошта',
+    password: 'Пароль',
+    auth_login_btn: 'Увійти',
+    auth_signup_btn: 'Створити акаунт',
+    auth_switch_to_signup: 'Немає акаунта? Зареєструватися',
+    auth_switch_to_login: 'Вже є акаунт? Увійти',
+    auth_bad_email: 'Введи пошту',
+    auth_short_password: 'Пароль має бути щонайменше 6 символів',
+    auth_invalid: 'Неправильна пошта або пароль',
+    auth_exists: 'Акаунт з такою поштою вже є — увійди',
+    auth_not_confirmed: 'Спершу підтвердь пошту: відкрий лист від Supabase',
+    auth_check_email: 'Майже готово! Відкрий лист на пошті, натисни посилання для підтвердження, а потім увійди тут.',
+    auth_not_configured: 'Supabase ще не налаштовано: впиши адресу й ключ у config.js.',
+    auth_offline: 'Немає інтернету. Для входу потрібен інтернет.',
+    auth_generic: 'Не вдалося: {msg}',
+    wait: 'Зачекай…',
+    account: 'Акаунт',
+    logout: 'Вийти',
+    sync_ok: 'Усе синхронізовано',
+    sync_syncing: 'Синхронізація…',
+    sync_offline: 'Офлайн: зміни збережено на пристрої й синхронізуються, щойно з\'явиться інтернет',
+    sync_error: 'Не вдалося синхронізувати. Спробую ще раз пізніше',
+    edit_operation: 'Редагувати операцію',
+    delete_operation: 'Видалити операцію',
     nav_home: 'Головна',
     nav_calendar: 'Календар',
     nav_stats: 'Статистика',
@@ -87,6 +114,33 @@ const translations = {
 
   en: {
     title: 'Spendings',
+    auth_tagline: 'Your spending on every device',
+    auth_title_login: 'Log in',
+    auth_title_signup: 'Sign up',
+    email: 'Email',
+    password: 'Password',
+    auth_login_btn: 'Log in',
+    auth_signup_btn: 'Create account',
+    auth_switch_to_signup: 'No account yet? Sign up',
+    auth_switch_to_login: 'Already have an account? Log in',
+    auth_bad_email: 'Enter your email',
+    auth_short_password: 'The password needs at least 6 characters',
+    auth_invalid: 'Wrong email or password',
+    auth_exists: 'This email already has an account — log in',
+    auth_not_confirmed: 'Confirm your email first: open the email from Supabase',
+    auth_check_email: 'Almost done! Open the email, tap the confirmation link, then log in here.',
+    auth_not_configured: 'Supabase isn\'t set up yet: add the URL and key to config.js.',
+    auth_offline: 'No internet. Logging in needs a connection.',
+    auth_generic: 'Something went wrong: {msg}',
+    wait: 'Wait…',
+    account: 'Account',
+    logout: 'Log out',
+    sync_ok: 'Everything is synced',
+    sync_syncing: 'Syncing…',
+    sync_offline: 'Offline: changes are saved on this device and will sync once you\'re online',
+    sync_error: 'Couldn\'t sync. Will try again later',
+    edit_operation: 'Edit transaction',
+    delete_operation: 'Delete transaction',
     nav_home: 'Home',
     nav_calendar: 'Calendar',
     nav_stats: 'Stats',
@@ -268,5 +322,8 @@ export function applyStaticTexts() {
     el.setAttribute('aria-label', t(el.dataset.i18nAria));
   });
   document.documentElement.lang = lang;
-  document.getElementById('lang-switch').textContent = lang === 'uk' ? 'EN' : 'UA';
+  // The language buttons show the language you can switch to
+  document.querySelectorAll('#lang-switch, #auth-lang').forEach(btn => {
+    btn.textContent = lang === 'uk' ? 'EN' : 'UA';
+  });
 }
