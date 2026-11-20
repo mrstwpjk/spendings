@@ -281,5 +281,24 @@
   </dialog>
 
   <script type="module" src="app.js"></script>
+    <!-- ================= Dialog: account balance ================= -->
+  <dialog id="bal-dialog" class="sheet">
+    <form id="bal-form" class="form" novalidate>
+      <div class="sheet-head">
+        <button type="button" class="icon-btn" id="bal-close" data-i18n-aria="cancel">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+        <h3 data-i18n="balance_edit_title">Баланс рахунку</h3>
+        <span class="spacer"></span>
+      </div>
+      <label>
+        <span id="bal-label"></span>
+        <input id="bal-input" type="text" inputmode="decimal" autocomplete="off">
+      </label>
+      <p id="bal-error" class="error" data-i18n="error_balance" hidden></p>
+      <p class="muted small" data-i18n="balance_hint">Записані витрати й надходження не зміняться: застосунок лише підлаштує рахунок під реальну суму.</p>
+      <button type="submit" class="btn primary" data-i18n="save">Зберегти</button>
+    </form>
+  </dialog>
 </body>
 </html>
