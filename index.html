@@ -18,6 +18,15 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
+  <script>
+    // Sets the theme before the page appears, so a light theme doesn't flash dark first
+    try {
+      const theme = localStorage.getItem('spendings-theme') || 'dark';
+      const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+      document.documentElement.dataset.theme = theme === 'auto' ? (dark ? 'dark' : 'light') : theme;
+      document.documentElement.dataset.accent = localStorage.getItem('spendings-accent') || 'burgundy';
+    } catch {}
+  </script>
 </head>
 <body>
   <!-- ================= Login / sign up ================= -->
@@ -151,12 +160,27 @@
 
       <!-- ================= Stats ================= -->
       <section id="view-stats" class="view" hidden>
-        <div class="month-nav">
-          <button class="icon-btn month-prev" data-i18n-aria="prev_month">‹</button>
-          <h2 class="month-label"></h2>
-          <button class="icon-btn month-next" data-i18n-aria="next_month">›</button>
+        <div class="segment" id="period-tabs">
+          <button type="button" data-period="week" data-i18n="period_week">Тиждень</button>
+          <button type="button" data-period="month" data-i18n="period_month">Місяць</button>
+          <button type="button" data-period="year" data-i18n="period_year">Рік</button>
+          <button type="button" data-period="custom" data-i18n="period_custom">Свій</button>
+        </div>
+        <div class="month-nav" id="stats-nav">
+          <button class="icon-btn" id="stats-prev" data-i18n-aria="prev_period">‹</button>
+          <h2 id="stats-label"></h2>
+          <button class="icon-btn" id="stats-next" data-i18n-aria="next_period">›</button>
+        </div>
+        <div id="stats-custom" class="grid2" hidden>
+          <label><span data-i18n="date_from">Від</span><input id="stats-from" type="date"></label>
+          <label><span data-i18n="date_to">До</span><input id="stats-to" type="date"></label>
         </div>
         <div class="cols">
+        <div class="col">
+        <div class="grid2">
+          <div class="card stat"><p class="muted small" data-i18n="expenses">Витрати</p><p id="stats-expense" class="neg strong"></p></div>
+          <div class="card stat"><p class="muted small" data-i18n="incomes">Надходження</p><p id="stats-income" class="pos strong"></p></div>
+        </div>
         <div class="card donut-card">
           <div class="donut-wrap">
             <svg id="donut" viewBox="0 0 180 180" role="img"></svg>
@@ -167,15 +191,35 @@
           </div>
           <div id="cat-list"></div>
         </div>
+        <button type="button" id="summary-btn" class="btn secondary summary-btn">
+          <span aria-hidden="true">✨</span> <span data-i18n="summary_open">Підсумок періоду</span>
+        </button>
+        </div>
+        <div class="col">
         <div class="card">
           <div class="section-head tight">
-            <h2 data-i18n="month_by_month">Місяць за місяцем</h2>
+            <h2 id="bars-title"></h2>
             <div class="legend">
               <span><i class="dot pos-bg"></i><span data-i18n="incomes">Надходження</span></span>
               <span><i class="dot neg-bg"></i><span data-i18n="expenses">Витрати</span></span>
             </div>
           </div>
           <div id="bars" class="bars"></div>
+        </div>
+        <div class="card">
+          <div class="section-head tight">
+            <h2 id="heatmap-title"></h2>
+            <div class="legend heat-legend" aria-hidden="true">
+              <span data-i18n="less">менше</span>
+              <i class="hm hm-0"></i><i class="hm hm-1"></i><i class="hm hm-2"></i><i class="hm hm-3"></i><i class="hm hm-4"></i>
+              <span data-i18n="more">більше</span>
+            </div>
+          </div>
+          <div id="heatmap-scroll" class="heatmap-scroll">
+            <div id="heatmap" class="heatmap"></div>
+          </div>
+          <p class="muted small" data-i18n="heatmap_hint">Натисни на день, щоб побачити його в календарі.</p>
+        </div>
         </div>
         </div>
       </section>
@@ -212,6 +256,44 @@
           <p id="settings-saved" class="pos small" data-i18n="saved" hidden>Збережено</p>
         </form>
         <div class="card form">
+          <p class="strong" data-i18n="appearance">Вигляд</p>
+          <div class="segment" id="theme-choice">
+            <button type="button" data-theme="dark" data-i18n="theme_dark">Темна</button>
+            <button type="button" data-theme="light" data-i18n="theme_light">Світла</button>
+            <button type="button" data-theme="auto" data-i18n="theme_auto">Як на телефоні</button>
+          </div>
+          <p class="muted small" data-i18n="accent_color">Колір кнопок</p>
+          <div id="accent-choice" class="swatches"></div>
+        </div>
+        <div class="card form" id="mono-card">
+          <p class="strong">monobank</p>
+          <div id="mono-off" class="form">
+            <p class="muted small" data-i18n="mono_intro">Підключи mono, і витрати й надходження з карт mono з'являтимуться тут самі.</p>
+            <ol class="steps small muted">
+              <li data-i18n="mono_step1">Відкрий api.monobank.ua і увійди через QR-код у застосунку mono.</li>
+              <li data-i18n="mono_step2">Скопіюй ключ (токен), який там з'явиться.</li>
+              <li data-i18n="mono_step3">Встав його сюди й натисни «Підключити».</li>
+            </ol>
+            <a class="link" href="https://api.monobank.ua/" target="_blank" rel="noopener" data-i18n="mono_open_site">Відкрити api.monobank.ua</a>
+            <label>
+              <span data-i18n="mono_token">Ключ (токен)</span>
+              <input id="mono-token" type="password" autocomplete="off" spellcheck="false">
+            </label>
+            <p class="muted small" data-i18n="mono_token_safe">Ключ лише читає операції — переказувати гроші з ним не можна. Він зберігається тільки на цьому пристрої.</p>
+            <p id="mono-error" class="error" hidden></p>
+            <button type="button" id="mono-connect" class="btn primary" data-i18n="mono_connect">Підключити</button>
+          </div>
+          <div id="mono-on" class="form" hidden>
+            <p class="muted small" data-i18n="mono_link_hint">Вибери, на який рахунок у Spendings підтягувати кожну карту. Підтягуються операції від моменту підключення.</p>
+            <div id="mono-cards" class="form"></div>
+            <p id="mono-status" class="small muted"></p>
+            <div class="grid2">
+              <button type="button" id="mono-refresh" class="btn secondary" data-i18n="mono_refresh">Оновити зараз</button>
+              <button type="button" id="mono-disconnect" class="btn danger" data-i18n="mono_disconnect">Відключити</button>
+            </div>
+          </div>
+        </div>
+        <div class="card form">
           <p class="strong" data-i18n="categories">Категорії</p>
           <p class="muted small" data-i18n="categories_hint">Натисни ×, щоб видалити. Старі операції з видаленою категорією залишаться.</p>
           <p class="muted small" data-i18n="expenses">Витрати</p>
@@ -242,9 +324,10 @@
         <span class="spacer"></span>
       </div>
 
-      <div class="segment">
+      <div class="segment" id="op-type">
         <button type="button" data-type="expense" data-i18n="expense">Витрата</button>
         <button type="button" data-type="income" data-i18n="income">Надходження</button>
+        <button type="button" data-type="transfer" data-i18n="transfer">Переказ</button>
       </div>
 
       <div class="amount-display" aria-live="polite">
@@ -253,7 +336,17 @@
       </div>
       <p id="op-error" class="error" data-i18n="error_amount" hidden></p>
 
+      <p id="op-from-label" class="muted small" data-i18n="transfer_from" hidden>Звідки</p>
       <div id="op-accounts" class="chips"></div>
+      <div id="op-transfer" class="form" hidden>
+        <p class="muted small" data-i18n="transfer_to">Куди</p>
+        <div id="op-to-accounts" class="chips"></div>
+        <label id="op-to-amount-wrap" hidden>
+          <span id="op-to-amount-label"></span>
+          <input id="op-to-amount" type="text" inputmode="decimal" autocomplete="off">
+        </label>
+        <p id="op-transfer-error" class="error" data-i18n="error_transfer" hidden></p>
+      </div>
       <div id="op-categories" class="cat-grid"></div>
 
       <div class="op-extra">
@@ -355,7 +448,7 @@
     </form>
   </dialog>
 
-    <!-- ================= Dialog: crop profile photo ================= -->
+  <!-- ================= Dialog: crop profile photo ================= -->
   <dialog id="crop-dialog" class="sheet">
     <form id="crop-form" class="form" novalidate>
       <div class="sheet-head">
@@ -377,7 +470,21 @@
       <button type="submit" class="btn primary" data-i18n="save">Зберегти</button>
     </form>
   </dialog>
-  
+
+  <!-- ================= Dialog: period summary ================= -->
+  <dialog id="summary-dialog" class="sheet">
+    <div class="form">
+      <div class="sheet-head">
+        <button type="button" class="icon-btn" id="summary-close" data-i18n-aria="close">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+        </button>
+        <h3 data-i18n="summary_title">Підсумок</h3>
+        <span class="spacer"></span>
+      </div>
+      <div id="summary-body" class="summary"></div>
+    </div>
+  </dialog>
+
   <script type="module" src="app.js"></script>
 </body>
 </html>
