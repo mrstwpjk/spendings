@@ -6,7 +6,7 @@
 // Bump CACHE_VERSION only when you add or rename files in APP_FILES.
 // =====================================================
 
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const CACHE = `spendings-${CACHE_VERSION}`;
 
 // Everything the app needs to start
@@ -18,6 +18,8 @@ const APP_FILES = [
   './i18n.js',
   './storage.js',
   './sync.js',
+  './mono.js',
+  './theme.js',
   './config.js',
   './manifest.json',
   './icons/icon-192.png',
