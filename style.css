@@ -11,6 +11,8 @@
   --text: #ECEFF8;
   --muted: #9BA3C0;
 
+  /* The accent color (buttons, "+", selected chips). Burgundy by default,
+     changed in Profile → Appearance (see the data-accent rules at the end) */
   --burgundy: #A3173B;
   --on-burgundy: #FFE6EC;
   --rose: #F28CA2;
@@ -22,6 +24,8 @@
 
   --pos: #8FA8FF;   /* income */
   --neg: #F28CA2;   /* expenses */
+  --error: #FF8FA3;
+  --dashed: #2C3E8C;
 
   --radius: 16px;
   --nav-h: 72px;
@@ -182,16 +186,16 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 .acc-name { font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .acc-sum { font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .acc-white   { background: var(--silver); color: var(--on-silver); }
-.acc-black   { background: #05060C; border: 1px solid var(--border); }
-.acc-usd     { background: var(--surface-2); border: 1px solid #2C3E8C; }
+.acc-black   { background: #05060C; color: #ECEFF8; border: 1px solid var(--border); }
+.acc-usd     { background: var(--surface-2); border: 1px solid var(--dashed); }
 .acc-usd .acc-name { color: var(--sapphire-light); }
-.acc-privat  { background: var(--burgundy); color: var(--on-burgundy); }
+.acc-privat  { background: #A3173B; color: #FFE6EC; }
 .acc-pumb    { background: var(--sapphire-deep); color: #DCE4FF; }
 .acc-cash    { background: var(--surface); border: 1px solid var(--surface-2); }
 .acc-custom  { background: var(--surface-2); }
 
 .dashed-btn {
-  border: 1px dashed #2C3E8C;
+  border: 1px dashed var(--dashed);
   background: none;
   color: var(--sapphire-light);
   border-radius: 14px;
@@ -205,7 +209,7 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
 }
 .dashed-btn svg { width: 18px; height: 18px; }
 
-.savings { border: 1px solid #2C3E8C; display: flex; flex-direction: column; gap: 8px; }
+.savings { border: 1px solid var(--dashed); display: flex; flex-direction: column; gap: 8px; }
 .bar { height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
 .bar-fill { height: 100%; border-radius: 3px; background: var(--sapphire); }
 
@@ -259,10 +263,10 @@ svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width:
   font-weight: 600;
 }
 .day-sum { font-size: 10px; font-weight: 500; opacity: 0.85; }
-.heat-1 { background: #3A2129; color: #FFD6DE; }
-.heat-2 { background: #7A1E36; color: #FFF0F3; }
+.heat-1 { background: color-mix(in srgb, var(--burgundy) 30%, var(--surface-2)); color: var(--text); }
+.heat-2 { background: color-mix(in srgb, var(--burgundy) 65%, var(--surface-2)); color: #FFF; }
 .heat-3 { background: var(--burgundy); color: var(--on-burgundy); }
-.day.future { background: transparent; color: #4C5578; }
+.day.future { background: transparent; color: var(--muted); opacity: 0.6; }
 .day.selected { box-shadow: 0 0 0 2px var(--sapphire-light); }
 
 /* ---------- Stats ---------- */
@@ -303,7 +307,7 @@ input, select {
   min-width: 0;
 }
 input:focus, select:focus { outline: 2px solid var(--sapphire); outline-offset: 0; }
-.error { color: #FF8FA3; font-size: 13px; }
+.error { color: var(--error); font-size: 13px; }
 #rate-info { white-space: pre-line; margin-top: 4px; }
 
 /* ---------- Dialogs (bottom sheet on phones) ---------- */
@@ -325,11 +329,12 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
 .sheet-head h3 { font-size: 17px; }
 .spacer { width: 44px; }
 
-.segment { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); background: var(--surface); border-radius: 14px; padding: 4px; }
+.segment { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); background: var(--surface); border-radius: 14px; padding: 4px; }
 .segment button { border: none; background: none; border-radius: 11px; padding: 9px; font-weight: 600; color: var(--muted); }
 .segment button.active { background: var(--surface-2); color: var(--text); }
 .segment button[data-type="expense"].active { color: var(--neg); }
 .segment button[data-type="income"].active { color: var(--pos); }
+.segment button[data-type="transfer"].active { color: var(--sapphire-light); }
 
 .amount-display { text-align: center; font-size: 54px; font-weight: 700; letter-spacing: -1.5px; line-height: 1.1; }
 .amount-display .muted { font-size: 26px; font-weight: 600; letter-spacing: 0; }
@@ -444,7 +449,7 @@ dialog::backdrop { background: rgba(0, 0, 0, 0.6); }
 .auth-box .link { align-self: center; }
 .btn:disabled { opacity: 0.6; cursor: wait; }
 .btn.secondary { background: var(--surface-2); color: var(--text); }
-.btn.danger { background: transparent; color: #FF8FA3; border: 1px solid #5A2433; }
+.btn.danger { background: transparent; color: var(--error); border: 1px solid color-mix(in srgb, var(--error) 40%, transparent); }
 
 .top-right { display: flex; align-items: center; gap: 10px; }
 .sync-dot { width: 10px; height: 10px; border-radius: 5px; background: var(--muted); }
@@ -472,7 +477,7 @@ button.op:focus-visible { outline: 2px solid var(--sapphire); outline-offset: 2p
 /* Account cards and savings rows are buttons: tap to correct the balance */
 button.acc { border: none; font: inherit; text-align: left; cursor: pointer; }
 button.acc.acc-black { border: 1px solid var(--border); }
-button.acc.acc-usd { border: 1px solid #2C3E8C; }
+button.acc.acc-usd { border: 1px solid var(--dashed); }
 button.acc.acc-cash { border: 1px solid var(--surface-2); }
 button.acc:hover { filter: brightness(1.12); }
 button.acc:focus-visible, .savings-row:focus-visible { outline: 2px solid var(--sapphire-light); outline-offset: 2px; }
@@ -538,3 +543,92 @@ button.acc:focus-visible, .savings-row:focus-visible { outline: 2px solid var(--
   pointer-events: none;
 }
 input.range { padding: 0; border: none; background: none; accent-color: var(--burgundy); height: 32px; }
+
+/* Transfers between accounts */
+.transfer-badge { color: var(--sapphire-light); font-size: 18px; }
+
+/* Stats: bar chart with many columns (days of a month, a custom period) */
+.bars.dense { gap: 2px; }
+.bars.dense .bar-pair { gap: 1px; }
+.bars.dense .bar-v { width: auto; flex: 0 1 6px; }
+.bar-label { white-space: nowrap; font-size: 11px; min-height: 14px; }
+
+/* Year heatmap: 7 rows (Mon–Sun), one column per week, scrolls sideways */
+.heatmap-scroll { overflow-x: auto; padding-bottom: 6px; margin-bottom: 6px; scrollbar-width: thin; }
+.heatmap {
+  display: grid;
+  grid-template-rows: 16px repeat(7, 11px);
+  grid-auto-columns: 11px;
+  gap: 2px;
+  width: max-content;
+}
+.hm { width: 11px; height: 11px; border-radius: 3px; border: none; padding: 0; display: inline-block; }
+.hm-0 { background: var(--surface-2); }
+.hm-1 { background: color-mix(in srgb, var(--burgundy) 30%, var(--surface-2)); }
+.hm-2 { background: color-mix(in srgb, var(--burgundy) 55%, var(--surface-2)); }
+.hm-3 { background: color-mix(in srgb, var(--burgundy) 80%, var(--surface-2)); }
+.hm-4 { background: var(--burgundy); }
+.hm.future { opacity: 0.35; }
+.hm.today { outline: 1.5px solid var(--sapphire-light); outline-offset: 0; }
+.hm-month { font-size: 10px; color: var(--muted); align-self: end; white-space: nowrap; }
+.heat-legend { align-items: center; gap: 3px; }
+.heat-legend .hm { width: 10px; height: 10px; }
+
+/* Period summary */
+.summary-btn { display: flex; align-items: center; justify-content: center; gap: 6px; }
+.summary { display: flex; flex-direction: column; gap: 12px; }
+.summary-head {
+  border-radius: 20px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: linear-gradient(135deg, var(--burgundy), var(--sapphire-deep));
+  color: #fff;
+}
+.summary-big { font-size: 40px; font-weight: 700; letter-spacing: -1px; }
+.summary-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.summary-tile { background: var(--surface); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.summary-tile strong { font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.summary-tile.wide { grid-column: 1 / -1; }
+
+/* Numbered steps (monobank connection) */
+.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+
+/* =====================================================
+   Light theme (Profile → Appearance)
+   ===================================================== */
+:root[data-theme="light"] {
+  --bg: #F4F5FA;
+  --surface: #FFFFFF;
+  --surface-2: #E9EBF3;
+  --border: #D3D8E6;
+  --text: #161A2D;
+  --muted: #5E6686;
+  --silver: #DDE1EA;
+  --on-silver: #161A26;
+  --sapphire: #3B5BDB;
+  --sapphire-light: #3451C7;
+  --sapphire-deep: #1F2F6E;
+  --pos: #2F55D4;
+  --neg: #C2244B;
+  --rose: #D6336C;
+  --error: #C2244B;
+  --dashed: #9AA8DA;
+  color-scheme: light;
+}
+/* Pastel category letters need a dark tile to stay readable */
+:root[data-theme="light"] .badge { background: #1D2442; }
+:root[data-theme="light"] .transfer-badge { color: #8FA8FF; }
+:root[data-theme="light"] .cat.add .badge { background: none; color: var(--muted); }
+:root[data-theme="light"] .acc-cash { border: 1px solid var(--border); }
+:root[data-theme="light"] dialog::backdrop { background: rgba(22, 26, 45, 0.45); }
+
+/* =====================================================
+   Accent colors (Profile → Appearance)
+   ===================================================== */
+:root[data-accent="sapphire"] { --burgundy: #3B5BDB; --on-burgundy: #EEF2FF; }
+:root[data-accent="rose"]     { --burgundy: #D6336C; --on-burgundy: #FFF0F6; }
+:root[data-accent="emerald"]  { --burgundy: #0F8A6A; --on-burgundy: #E6FFF6; }
+:root[data-accent="violet"]   { --burgundy: #7048E8; --on-burgundy: #F3F0FF; }
+:root[data-accent="amber"]    { --burgundy: #C2620A; --on-burgundy: #FFF4E6; }
